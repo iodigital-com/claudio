@@ -1,0 +1,19 @@
+[project]
+name = "claudio"
+version = "0.1.0"
+description = "CLI for switching between Claude Code projects with different API keys"
+readme = "README.md"
+authors = [
+    { name = "Nimo Beeren", email = "nimo.beeren@iodigital.com" }
+]
+requires-python = ">=3.13"
+dependencies = [
+    "prompt-toolkit>=3.0.52",
+]
+
+[project.scripts]
+claudio = "claudio.cli:main"
+
+[build-system]
+requires = ["uv_build>=0.9.18,<0.10.0"]
+build-backend = "uv_build"
