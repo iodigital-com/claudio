@@ -105,12 +105,54 @@ def claudio_config_layers() -> list[ConfigLayer]:
     )
 
 
-def highest_claudio_config() -> tuple[str, dict[str, Any]]:
-    """Return the highest-precedence claudio config that defines projects."""
-    for label, _path, data in claudio_config_layers():
-        if "projects" in data:
-            return label, data
-    return "", {}
+def merged_claudio_config() -> dict[str, Any]:
+    """Return a deep-merged claudio config across all layers (highest precedence wins).
+
+    Projects are matched by name. For each project, fields are merged with
+    higher-precedence layers winning. The 'env' dict within each project is
+    also deep-merged so that, e.g., a user-level API key is inherited by a
+    local project entry that only specifies a name.
+    """
+    layers = claudio_config_layers()
+    if not layers:
+        return {}
+
+    # The highest-precedence layer that defines 'projects' determines which
+    # projects are available. Lower layers only enrich those projects (e.g.
+    # contributing env keys), never adding new ones to the list.
+    defining_data = next(
+        (data for _label, _path, data in layers if "projects" in data),
+        None,
+    )
+    if defining_data is None:
+        return {}
+
+    # Build per-name merged configs from all layers (lowest → highest).
+    projects_by_name: dict[str, dict[str, Any]] = {}
+    for _label, _path, data in reversed(layers):
+        for proj in data.get("projects", []):
+            name = proj.get("name")
+            if not isinstance(name, str):
+                continue
+            existing = projects_by_name.get(name, {})
+            merged_proj = {**existing, **proj}
+            # Deep-merge the env sub-dict instead of replacing it wholesale.
+            if isinstance(existing.get("env"), dict) and isinstance(proj.get("env"), dict):
+                merged_proj["env"] = {**existing["env"], **proj["env"]}
+            projects_by_name[name] = merged_proj
+
+    # Preserve the order from the defining layer; exclude any names not in it.
+    defining_names = [
+        p["name"]
+        for p in defining_data.get("projects", [])
+        if isinstance(p.get("name"), str)
+    ]
+    projects = [projects_by_name[n] for n in defining_names if n in projects_by_name]
+
+    if not projects:
+        return {}
+
+    return {"projects": projects}
 
 
 # ---------- User-level claudio settings -----------------------------------

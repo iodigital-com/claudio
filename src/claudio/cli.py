@@ -10,7 +10,7 @@ import sys
 from claudio.projects import select_project
 from claudio.settings import (
     ConfigError,
-    highest_claudio_config,
+    merged_claudio_config,
     highest_claude_env,
     validate_projects,
 )
@@ -33,7 +33,7 @@ def main() -> None:
     # We capture only our own flags; everything else goes to claude.
     args, claude_args = parser.parse_known_args()
 
-    label, config = highest_claudio_config()
+    config = merged_claudio_config()
 
     if not config:
         # No claudio config at all — just launch claude directly.
@@ -42,7 +42,7 @@ def main() -> None:
     try:
         projects = validate_projects(config)
     except ConfigError as exc:
-        print(f"claudio: config error ({label}): {exc}", file=sys.stderr)
+        print(f"claudio: config error: {exc}", file=sys.stderr)
         sys.exit(1)
 
     if len(projects) == 1:

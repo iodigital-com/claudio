@@ -1,6 +1,6 @@
 [project]
 name = "claudio"
-version = "0.1.0"
+version = "0.2.0"
 description = "CLI for switching between Claude Code projects with different API keys"
 readme = "README.md"
 authors = [
