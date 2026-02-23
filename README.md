@@ -16,9 +16,9 @@ Claude Code's `env` config uses a "highest-precedence layer wins" approach — y
 
 ## Installation
 
-```sh
-uv tool install . --reinstall
-```
+1. Clone the repo
+2. Run `uv tool install . --reinstall` from the repo root
+3. Run `claudio` anywhere
 
 ## Usage
 
