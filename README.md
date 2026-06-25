@@ -93,8 +93,35 @@ If you always use the same project in a given repo, create a `.claude/claudio.se
 
 Because there's only one project, `claudio` will select it automatically — no prompt needed.
 
+### Storing API keys securely with 1Password
+
+Storing API keys as plaintext in config files is a supply chain risk — if a malicious package or tool reads your filesystem, your keys are exposed. The recommended approach is to store API keys in 1Password and reference them using the `op://` URI scheme:
+
+```json
+{
+  "projects": [
+    {
+      "name": "Customer 1",
+      "env": {
+        "ANTHROPIC_AUTH_TOKEN": "op://<vault>/<item>/<attribute>"
+      }
+    }
+  ]
+}
+```
+
+For example:
+
+```json
+"ANTHROPIC_AUTH_TOKEN": "op://Employee/Bonzai API key Pluxee/password"
+```
+
+When `claudio` detects an `op://` value, it resolves it via the [1Password CLI](https://www.1password.dev/cli/get-started) (`op read`) before passing the token to Claude Code. Everyone at iO has access to 1Password, so this is the preferred setup.
+
+You do need to setup 1Password for this, see: https://www.1password.dev/cli/get-started
+
 ### Config Schema
 
 - **`projects`** — array of project objects:
   - **`name`** (string, required) — display name for the project.
-  - **`env`** (object, optional) — key-value pairs of environment variables. These are **merged** into the `env` of the Claude Code config, overriding only the keys you specify.
+  - **`env`** (object, optional) — key-value pairs of environment variables. These are **merged** into the `env` of the Claude Code config, overriding only the keys you specify. Values starting with `op://` are resolved via the 1Password CLI at runtime.

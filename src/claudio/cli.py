@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import subprocess
 import sys
 
 from claudio.projects import select_project
@@ -57,10 +58,32 @@ def main() -> None:
     if project_env:
         _, base_env = highest_claude_env()
         merged = {**base_env, **project_env}
+        merged = _resolve_op_references(merged)
         extra_settings_args = ["--settings", json.dumps({"env": merged})]
 
     print(f"Using project: {selected['name']}")
     _exec_claude(extra_settings_args + claude_args)
+
+
+def _resolve_op_references(env: dict[str, str]) -> dict[str, str]:
+    resolved = {}
+    for key, value in env.items():
+        if value.startswith("op://"):
+            result = subprocess.run(
+                ["op", "read", value],
+                capture_output=True,
+                text=True,
+            )
+            if result.returncode != 0:
+                print(
+                    f"claudio: failed to read 1Password secret for {key}: {result.stderr.strip()}",
+                    file=sys.stderr,
+                )
+                sys.exit(1)
+            resolved[key] = result.stdout.strip()
+        else:
+            resolved[key] = value
+    return resolved
 
 
 def _exec_claude(claude_args: list[str]) -> None:
