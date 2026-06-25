@@ -12,13 +12,21 @@ Claude Code's `env` config uses a "highest-precedence layer wins" approach — y
 
 ## Prerequisites
 
-- [uv](https://docs.astral.sh/uv/) package manager
+- Mac/Linux: 
+-- [homebrew](https://brew.sh/) package manager
+-- terminal 1x: brew tap iodigital-com/io (to tap the iO homebrew repo)
+-- terminal 1x: brew trust --tap iodigital-com/io (to trust the iO homebrew repo)
+- Windows: [uv](https://docs.astral.sh/uv/) package manager 
 
 ## Installation
+### Mac/Linux
+1. brew install claudio
+1. Run `claudio` anywhere
 
+### Windows
 1. Clone the repo
-2. Run `uv tool install . --reinstall` from the repo root
-3. Run `claudio` anywhere
+1. Run `uv tool install . --reinstall` from the repo root
+1. Run `claudio` anywhere
 
 ## Usage
 
@@ -67,7 +75,7 @@ Example config:
     {
       "name": "Customer 2",
       "env": {
-        "ANTHROPIC_AUTH_TOKEN": "sk-..."
+        "ANTHROPIC_AUTH_TOKEN": "1Password reference - see below"
       }
     }
   ]
