@@ -12,7 +12,7 @@ Claude Code's `env` config uses a "highest-precedence layer wins" approach — y
 
 ## Prerequisites
 
-- Mac/Linux: [homebrew](https://brew.sh/) package manager (run once):
+- Mac/Linux: [homebrew](https://brew.sh/) package manager (run once ever):
   ```sh
   brew tap iodigital-com/io
   ```
@@ -49,12 +49,13 @@ claudio --help
 When you run `claudio`:
 
 1. It discovers your `claudio` config (highest precedence wins).
-2. If there's only **one** project, it's selected automatically.
-3. Otherwise you're prompted to pick one (the last-used project is the default).
-4. The selected project's env is merged into your Claude config.
-5. `claude` is launched with any extra CLI arguments you passed.
+1. If there's only **one** project, it's selected automatically.
+1. Otherwise you're prompted to pick one (the last-used project is the default).
+1. The selected project's env is retrieved from 1Password and merged into your Claude config.
+1. `claude` is launched with any extra CLI arguments you passed.
 
 If no `claudio` config exists, `claude` is launched directly.
+Note that even though `claudio` works with API keys specified in the settings files for backward compatibility, the 1Password store is highly preferred.
 
 ## Configuration
 
@@ -66,6 +67,12 @@ Create a `claudio.settings.json` (shared) or `claudio.settings.local.json` (git-
 | Project       | `.claude/claudio.settings.json`       |
 | Project local | `.claude/claudio.settings.local.json` |
 
+### Config Schema
+
+- **`projects`** — array of project objects:
+  - **`name`** (string, required) — display name for the project.
+  - **`env`** (object, optional) — key-value pairs of environment variables. These are **merged** into the `env` of the Claude Code config, overriding only the keys you specify. Values starting with `op://` are resolved via the 1Password CLI at runtime (see below).
+
 Example config:
 
 ```json
@@ -74,13 +81,13 @@ Example config:
     {
       "name": "Customer 1",
       "env": {
-        "ANTHROPIC_AUTH_TOKEN": "sk-..."
+        "ANTHROPIC_AUTH_TOKEN": "1Password reference - op://....."
       }
     },
     {
       "name": "Customer 2",
       "env": {
-        "ANTHROPIC_AUTH_TOKEN": "1Password reference - see below"
+        "ANTHROPIC_AUTH_TOKEN": "sk-..."
       }
     }
   ]
@@ -97,7 +104,7 @@ If you always use the same project in a given repo, create a `.claude/claudio.se
     {
       "name": "Customer 1",
       "env": {
-        "ANTHROPIC_AUTH_TOKEN": "sk-ant-..."
+        "ANTHROPIC_AUTH_TOKEN": "op://....."
       }
     }
   ]
@@ -123,25 +130,23 @@ Storing API keys as plaintext in config files is a supply chain risk — if a ma
 }
 ```
 
-For example:
+> You can use different 1Password item types if you want and create your own (password-typed) attributes if you want.
 
-> Different 1Password item types require different identifiers. Login items uses password, API keys uses reference/referentie
-
+Example1: the default for a "password" type item
 ```json
-"ANTHROPIC_AUTH_TOKEN": "op://Employee/Bonzai API key Pluxee/password"
+"ANTHROPIC_AUTH_TOKEN": "op://Employee/Bonzai API key clientX/password"
 ```
-
-Or for API keys
+Example2: the "password" type with a custom password-type attribute
 ```json
-"ANTHROPIC_AUTH_TOKEN": "op://Employee/Bonzai API key Pluxee/referentie"
+"ANTHROPIC_AUTH_TOKEN": "op://Employee/Bonzai API keys/clientX"
+```
+Example3: the default for a "API Credential" type item
+```json
+"ANTHROPIC_AUTH_TOKEN": "op://Employee/Bonzai API key ClientX/referentie"
 ```
 
 When `claudio` detects an `op://` value, it resolves it via the [1Password CLI](https://www.1password.dev/cli/get-started) (`op read`) before passing the token to Claude Code. Everyone at iO has access to 1Password, so this is the preferred setup.
 
-You do need to setup 1Password for this, see: https://www.1password.dev/cli/get-started
+You do need to setup 1Password CLI for this, see: https://www.1password.dev/cli/get-started
 
-### Config Schema
 
-- **`projects`** — array of project objects:
-  - **`name`** (string, required) — display name for the project.
-  - **`env`** (object, optional) — key-value pairs of environment variables. These are **merged** into the `env` of the Claude Code config, overriding only the keys you specify. Values starting with `op://` are resolved via the 1Password CLI at runtime.
