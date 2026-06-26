@@ -48,8 +48,11 @@ def _project_dir() -> Path | None:
 def _load_json(path: Path) -> dict[str, Any]:
     try:
         return json.loads(path.read_text())
-    except (FileNotFoundError, json.JSONDecodeError):
+    except FileNotFoundError:
         return {}
+    except json.JSONDecodeError as exc:
+        print(f"claudio: {path}: invalid JSON ({exc})", file=sys.stderr)
+        sys.exit(1)
 
 
 ConfigLayer = tuple[str, Path, dict[str, Any]]
