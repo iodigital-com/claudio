@@ -12,7 +12,7 @@ Claude Code's `env` config uses a "highest-precedence layer wins" approach — y
 
 ## Prerequisites
 
-- Mac/Linux: [homebrew](https://brew.sh/) package manager (run once):
+- Mac/Linux: [homebrew](https://brew.sh/) package manager (run once ever):
   ```sh
   brew tap iodigital-com/io
   ```
