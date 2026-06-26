@@ -89,7 +89,7 @@ def _resolve_op_references(env: dict[str, str]) -> dict[str, str]:
 def _exec_claude(claude_args: list[str]) -> None:
     """Replace the current process with `claude`."""
     if sys.platform == "win32":
-        result = subprocess.run(["claude", *claude_args])
+        result = subprocess.run(["claude", *claude_args], shell=True)
         sys.exit(result.returncode)
     else:
         os.execvp("claude", ["claude", *claude_args])
