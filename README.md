@@ -1,14 +1,22 @@
 # claudio
 
-CLI wrapper for [Claude Code](https://docs.anthropic.com/en/docs/claude-code) that lets you switch between projects with different API keys (or other env vars) before launching `claude`.
+CLI wrapper for [Claude Code](https://docs.anthropic.com/en/docs/claude-code) that lets you switch between projects with different API keys (or other env vars) before launching `claude` and retrieving them from 1Password, before launching claude.
 
 ## The Problem
 
-Claude Code's `env` config uses a "highest-precedence layer wins" approach — you can't override specific keys without replacing the entire object. This makes it hard to manage multiple projects that share most env vars but differ in one or two (e.g. `ANTHROPIC_AUTH_TOKEN`).
+When working for multiple clients, you often need to switch between different Anthropic API keys. Claude Code doesn't provide a way to select a named project configuration at launch — you'd have to manually update your config or environment before each session.
+
+On top of that, storing API keys as plaintext in config files is a supply chain risk.
 
 ## This Solution
 
-`claudio` takes the `env` from your highest-precedence Claude config and **merges the selected project's keys on top**. You only specify the vars that differ per project, and the rest are preserved.
+`claudio` lets you define named project profiles, each with their own env vars. At launch you pick a project and its env is merged into your Claude config for that session. API keys are stored securely in 1Password and resolved at runtime — never written to disk in plaintext.
+
+> Claude Code also supports [`apiKeyHelper`](https://code.claude.com/docs/en/settings#available-settings) — a shell command that returns an API key at runtime, so you can pull it from 1Password yourself:
+> ```json
+> { "apiKeyHelper": "op read op://Personal/Anthropic/credential" }
+> ```
+> This works well for a single key per machine, but it can't be combined with an auth token. claudio adds value when you manage multiple clients with different keys or need per-project env vars beyond just the API key.
 
 ## Prerequisites
 
