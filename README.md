@@ -1,6 +1,6 @@
 # claudio
 
-CLI wrapper for [Claude Code](https://docs.anthropic.com/en/docs/claude-code) that lets you switch between projects with different API keys (or other env vars) before launching `claude`.
+CLI wrapper for [Claude Code](https://docs.anthropic.com/en/docs/claude-code) that lets you switch between projects with different API keys (or other env vars) before launching `claude` and retrieving them from 1Password, before launching claude.
 
 ## The Problem
 
