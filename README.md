@@ -12,7 +12,11 @@ On top of that, storing API keys as plaintext in config files is a supply chain 
 
 `claudio` lets you define named project profiles, each with their own env vars. At launch you pick a project and its env is merged into your Claude config for that session. API keys are stored securely in 1Password and resolved at runtime — never written to disk in plaintext.
 
-> If you only ever need one key per repo, Claude Code's `settings.json` `env` field could be sufficient — claudio adds value when you manage multiple clients or want centralized, secure key storage.
+> Claude Code also supports [`apiKeyHelper`](https://code.claude.com/docs/en/settings#available-settings) — a shell command that returns an API key at runtime, so you can pull it from 1Password yourself:
+> ```json
+> { "apiKeyHelper": "op read op://Personal/Anthropic/credential" }
+> ```
+> This works well for a single key per machine, but it can't be combined with an auth token. claudio adds value when you manage multiple clients with different keys or need per-project env vars beyond just the API key.
 
 ## Prerequisites
 
