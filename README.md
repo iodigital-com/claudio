@@ -64,7 +64,11 @@ To use `claudio` with the VS Code Claude extension, configure `apiKeyHelper` in 
 }
 ```
 
-This will automatically use the last project you selected with `claudio`. To pin a specific project:
+This will automatically use the last project you selected with `claudio`.
+
+#### Pinning a project per workspace
+
+If you want a specific workspace to always use one project (regardless of what you last selected), pin it in that workspace's `.claude/settings.local.json`:
 
 ```json
 {
