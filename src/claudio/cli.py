@@ -78,6 +78,7 @@ def _resolve_op_value(value: str) -> str:
         ["op", "read", value],
         capture_output=True,
         text=True,
+        shell=sys.platform == "win32",
     )
     if result.returncode != 0:
         print(
