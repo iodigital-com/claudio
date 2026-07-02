@@ -50,9 +50,41 @@ claudio
 # Pass arguments through to claude
 claudio --model claude-4-5-sonnet -p "hello"
 
+# Print the API key for the last-selected project (for use as apiKeyHelper)
+claudio get-key
+
+# Print the API key for a specific project
+claudio get-key --project 'Customer 1'
+
 # Help
 claudio --help
 ```
+
+### Using Claudio with the VS Code Claude Extension
+
+To use `claudio` with the VS Code Claude extension, configure `apiKeyHelper` in your Claude settings (`~/.claude/settings.json` or `.claude/settings.local.json`):
+
+```json
+{
+  "apiKeyHelper": "claudio get-key"
+}
+```
+
+This will automatically use the last project you selected with `claudio`.
+
+#### Pinning a project per workspace
+
+If you want a specific workspace to always use one project (regardless of what you last selected), pin it in that workspace's `.claude/settings.local.json`:
+
+```json
+{
+  "apiKeyHelper": "claudio get-key --project 'Customer 1'"
+}
+```
+
+> **Note:** Do not set `ANTHROPIC_API_KEY` or `ANTHROPIC_AUTH_TOKEN` in `claudeCode.environmentVariables` or your shell profile — environment variables take precedence over `apiKeyHelper` and will cause a conflict warning. Keep all tokens exclusively in your `claudio.settings.json`.
+
+### CLI
 
 When you run `claudio`:
 
@@ -89,13 +121,13 @@ Example config:
     {
       "name": "Customer 1",
       "env": {
-        "ANTHROPIC_AUTH_TOKEN": "1Password reference - op://....."
+        "ANTHROPIC_API_KEY": "op://....."
       }
     },
     {
       "name": "Customer 2",
       "env": {
-        "ANTHROPIC_AUTH_TOKEN": "sk-..."
+        "ANTHROPIC_API_KEY": "sk-..."
       }
     }
   ]
@@ -112,7 +144,7 @@ If you always use the same project in a given repo, create a `.claude/claudio.se
     {
       "name": "Customer 1",
       "env": {
-        "ANTHROPIC_AUTH_TOKEN": "op://....."
+        "ANTHROPIC_API_KEY": "op://....."
       }
     }
   ]
@@ -131,7 +163,7 @@ Storing API keys as plaintext in config files is a supply chain risk — if a ma
     {
       "name": "Customer 1",
       "env": {
-        "ANTHROPIC_AUTH_TOKEN": "op://<vault>/<item>/<attribute>"
+        "ANTHROPIC_API_KEY": "op://<vault>/<item>/<attribute>"
       }
     }
   ]
@@ -142,15 +174,15 @@ Storing API keys as plaintext in config files is a supply chain risk — if a ma
 
 Example1: the default for a "password" type item
 ```json
-"ANTHROPIC_AUTH_TOKEN": "op://Employee/Bonzai API key clientX/password"
+"ANTHROPIC_API_KEY": "op://Employee/Bonzai API key clientX/password"
 ```
 Example2: the "password" type with a custom password-type attribute
 ```json
-"ANTHROPIC_AUTH_TOKEN": "op://Employee/Bonzai API keys/clientX"
+"ANTHROPIC_API_KEY": "op://Employee/Bonzai API keys/clientX"
 ```
 Example3: the default for a "API Credential" type item
 ```json
-"ANTHROPIC_AUTH_TOKEN": "op://Employee/Bonzai API key ClientX/referentie"
+"ANTHROPIC_API_KEY": "op://Employee/Bonzai API key ClientX/referentie"
 ```
 
 When `claudio` detects an `op://` value, it resolves it via the [1Password CLI](https://www.1password.dev/cli/get-started) (`op read`) before passing the token to Claude Code. Everyone at iO has access to 1Password, so this is the preferred setup.
