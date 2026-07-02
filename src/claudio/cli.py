@@ -12,8 +12,10 @@ from claudio.projects import select_project
 from claudio.settings import (
     ConfigError,
     load_user_settings,
+    save_user_settings,
     merged_claudio_config,
     highest_claude_env,
+    claude_config_layers,
     validate_projects,
 )
 
@@ -53,12 +55,23 @@ def main() -> None:
 
     if len(projects) == 1:
         selected = projects[0]
+        settings = load_user_settings()
+        settings["lastProject"] = selected["name"]
+        save_user_settings(settings)
     else:
         selected = select_project(projects)
         if selected is None:
             sys.exit(130)
 
-    project_env = selected.get("env", {})
+    api_key_helper_active = any(
+        data.get("apiKeyHelper")
+        for _label, _path, data in claude_config_layers()
+    )
+    _KEY_VARS = {"ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN"}
+    project_env = {
+        k: v for k, v in selected.get("env", {}).items()
+        if not api_key_helper_active or k not in _KEY_VARS
+    }
     extra_settings_args: list[str] = []
     if project_env:
         _, base_env = highest_claude_env()
