@@ -54,6 +54,28 @@ claudio --model claude-4-5-sonnet -p "hello"
 claudio --help
 ```
 
+### Using Claudio with the VS Code Claude Extension
+
+To use `claudio` with the VS Code Claude extension, configure `apiKeyHelper` in your Claude settings (`~/.claude/settings.json` or `.claude/settings.local.json`):
+
+```json
+{
+  "apiKeyHelper": "claudio get-key"
+}
+```
+
+This will automatically use the last project you selected with `claudio`. To pin a specific project:
+
+```json
+{
+  "apiKeyHelper": "claudio get-key --project 'Customer 1'"
+}
+```
+
+> **Note:** Remove any `ANTHROPIC_AUTH_TOKEN` from your VS Code `claudeCode.environmentVariables` setting — environment variables take precedence over `apiKeyHelper` and would override it.
+
+### CLI
+
 When you run `claudio`:
 
 1. It discovers your `claudio` config (highest precedence wins).
