@@ -108,6 +108,21 @@ def claudio_config_layers() -> list[ConfigLayer]:
     )
 
 
+def claudio_config_candidates() -> list[tuple[str, Path]]:
+    """Return all potential claudio config paths in precedence order (highest first).
+
+    Unlike ``claudio_config_layers``, this includes paths that don't exist yet,
+    so callers can display the full search list regardless of what is present.
+    """
+    candidates: list[tuple[str, Path]] = []
+    project_dir = _project_dir()
+    if project_dir is not None:
+        candidates.append(("project-local", project_dir / "claudio.settings.local.json"))
+        candidates.append(("project-shared", project_dir / "claudio.settings.json"))
+    candidates.append(("user", _user_dir() / "claudio.settings.json"))
+    return candidates
+
+
 def merged_claudio_config() -> dict[str, Any]:
     """Return a deep-merged claudio config across all layers (highest precedence wins).
 
