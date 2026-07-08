@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import os
+import shutil
 import sys
 
 from claudio.config import (
     ConfigError,
+    claudio_config_candidates,
+    claudio_config_layers,
     highest_claude_env,
     load_user_settings,
     merged_claudio_config,
@@ -66,12 +69,49 @@ _KNOWN_VARS = (_PROXY_VAR,) + _CREDENTIAL_VARS
 _VAR_WIDTH = max(len(v) for v in _KNOWN_VARS)  # 20
 
 
-def _cmd_doctor(projects: list[dict]) -> None:
+def _cmd_doctor(projects: list[dict], hint: str | None = None) -> None:
     """Check project config health. Exits 1 if any warnings are found."""
-    print(f"{len(projects)} project(s) configured.\n")
     warnings = 0
 
-    for proj in projects:
+    # -- Binaries -----------------------------------------------------------
+    print("Binaries:")
+    for bin_name in ("claude", "op"):
+        path = shutil.which(bin_name)
+        if path:
+            print(f"  {bin_name:<8}  {path}")
+        else:
+            print(f"  {bin_name:<8}  not found")
+            if bin_name == "op":
+                print(
+                    "             install from "
+                    "https://developer.1password.com/docs/cli/get-started/"
+                )
+            warnings += 1
+    print()
+
+    # -- Config layers ------------------------------------------------------
+    print("Config:")
+    active_paths = {str(path) for _label, path, _data in claudio_config_layers()}
+    for _label, path in claudio_config_candidates():
+        if path.exists():
+            tag = "active" if str(path) in active_paths else "exists (no projects key)"
+        else:
+            tag = "not found"
+        print(f"  {path}  [{tag}]")
+    print()
+
+    # -- Projects -----------------------------------------------------------
+    # Filter to a single project when a hint is given.
+    display_projects = projects
+    if hint:
+        display_projects = [p for p in projects if p["name"] == hint]
+        if not display_projects:
+            print(f"claudio doctor: project not found: {hint!r}", file=sys.stderr)
+            sys.exit(1)
+
+    print(f"{len(display_projects)} project(s) configured.\n")
+
+    for proj in display_projects:
         name = proj["name"]
         env = proj.get("env", {})
         print(f"  {name}")
@@ -231,7 +271,7 @@ def main() -> None:
         return
 
     if command == "doctor":
-        _cmd_doctor(projects)
+        _cmd_doctor(projects, hint=hint)
         return
 
     if command == "wrapper":
