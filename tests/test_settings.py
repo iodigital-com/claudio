@@ -95,6 +95,85 @@ def test_validate_projects_accepts_valid_env():
 
 
 # ---------------------------------------------------------------------------
+# validate_projects — anthropic block
+# ---------------------------------------------------------------------------
+
+
+def test_validate_projects_accepts_anthropic_bearer():
+    projects = validate_projects({
+        "projects": [{
+            "name": "work",
+            "anthropic": {
+                "baseUrl": "https://proxy.example.com",
+                "auth": {"type": "bearer", "token": "my-token"},
+            },
+        }]
+    })
+    assert projects[0]["anthropic"]["auth"]["type"] == "bearer"
+
+
+def test_validate_projects_accepts_anthropic_api_key():
+    projects = validate_projects({
+        "projects": [{
+            "name": "work",
+            "anthropic": {
+                "auth": {"type": "apiKey", "apiKey": "sk-test"},
+            },
+        }]
+    })
+    assert projects[0]["anthropic"]["auth"]["apiKey"] == "sk-test"
+
+
+def test_validate_projects_raises_on_non_dict_anthropic():
+    with pytest.raises(ConfigError):
+        validate_projects({"projects": [{"name": "work", "anthropic": "bad"}]})
+
+
+def test_validate_projects_raises_on_non_string_base_url():
+    with pytest.raises(ConfigError):
+        validate_projects({
+            "projects": [{"name": "work", "anthropic": {"baseUrl": 123}}]
+        })
+
+
+def test_validate_projects_raises_on_non_dict_auth():
+    with pytest.raises(ConfigError):
+        validate_projects({
+            "projects": [{"name": "work", "anthropic": {"auth": "bad"}}]
+        })
+
+
+def test_validate_projects_raises_on_invalid_auth_type():
+    with pytest.raises(ConfigError):
+        validate_projects({
+            "projects": [{
+                "name": "work",
+                "anthropic": {"auth": {"type": "oauth", "token": "x"}},
+            }]
+        })
+
+
+def test_validate_projects_raises_on_bearer_missing_token():
+    with pytest.raises(ConfigError):
+        validate_projects({
+            "projects": [{
+                "name": "work",
+                "anthropic": {"auth": {"type": "bearer"}},
+            }]
+        })
+
+
+def test_validate_projects_raises_on_api_key_missing_api_key():
+    with pytest.raises(ConfigError):
+        validate_projects({
+            "projects": [{
+                "name": "work",
+                "anthropic": {"auth": {"type": "apiKey"}},
+            }]
+        })
+
+
+# ---------------------------------------------------------------------------
 # merged_claudio_config
 # ---------------------------------------------------------------------------
 

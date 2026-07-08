@@ -13,7 +13,7 @@ from claudio.config import (
     validate_projects,
 )
 from claudio.launcher import exec_claude
-from claudio.runtime import build_effective_env, build_settings_args
+from claudio.runtime import build_effective_env, build_settings_args, compile_anthropic_block
 from claudio.secrets import resolve_op_references
 from claudio.selector import AmbiguousProject, ProjectNotFound, resolve_project
 
@@ -143,7 +143,9 @@ def main() -> None:
     if selected is None:
         sys.exit(130)
 
-    project_env = selected.get("env", {})
+    # Compile anthropic: block first; explicit env wins on conflict.
+    anthropic_env = compile_anthropic_block(selected)
+    project_env = {**anthropic_env, **selected.get("env", {})}
     extra_settings_args: list[str] = []
     if project_env:
         _, base_env = highest_claude_env()

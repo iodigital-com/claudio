@@ -198,7 +198,32 @@ def validate_projects(data: dict[str, Any]) -> list[dict[str, Any]]:
             raise ConfigError(f"projects[{i}].env must be an object")
         for k, v in env.items():
             if not isinstance(v, str):
-                raise ConfigError(
-                    f"projects[{i}].env.{k} must be a string"
-                )
+                raise ConfigError(f"projects[{i}].env.{k} must be a string")
+
+        anthropic = proj.get("anthropic")
+        if anthropic is not None:
+            if not isinstance(anthropic, dict):
+                raise ConfigError(f"projects[{i}].anthropic must be an object")
+            base_url = anthropic.get("baseUrl")
+            if base_url is not None and not isinstance(base_url, str):
+                raise ConfigError(f"projects[{i}].anthropic.baseUrl must be a string")
+            auth = anthropic.get("auth")
+            if auth is not None:
+                if not isinstance(auth, dict):
+                    raise ConfigError(f"projects[{i}].anthropic.auth must be an object")
+                auth_type = auth.get("type")
+                if auth_type not in (None, "bearer", "apiKey"):
+                    raise ConfigError(
+                        f"projects[{i}].anthropic.auth.type must be 'bearer' or 'apiKey'"
+                    )
+                if auth_type == "bearer":
+                    if not isinstance(auth.get("token"), str):
+                        raise ConfigError(
+                            f"projects[{i}].anthropic.auth.token must be a string"
+                        )
+                elif auth_type == "apiKey":
+                    if not isinstance(auth.get("apiKey"), str):
+                        raise ConfigError(
+                            f"projects[{i}].anthropic.auth.apiKey must be a string"
+                        )
     return projects
