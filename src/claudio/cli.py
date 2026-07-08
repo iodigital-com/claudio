@@ -6,6 +6,7 @@ import os
 import shutil
 import sys
 
+from claudio.setup import CURSOR, VSCODE, cmd_setup_print, cmd_setup_workspace
 from claudio.config import (
     ConfigError,
     claudio_config_candidates,
@@ -150,6 +151,29 @@ def _cmd_doctor(projects: list[dict], hint: str | None = None) -> None:
     print("No issues found.")
 
 
+def _cmd_setup(remainder: list[str]) -> None:
+    """Dispatch claudio setup <editor> [--print | --workspace]."""
+    _EDITORS = {"vscode": VSCODE, "cursor": CURSOR}
+
+    if not remainder or remainder[0] not in _EDITORS:
+        print(
+            "Usage: claudio setup <editor> [--print | --workspace]\n"
+            f"Editors: {', '.join(_EDITORS)}",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    editor_name = remainder[0]
+    flags = remainder[1:]
+    adapter = _EDITORS[editor_name]
+
+    if "--workspace" in flags:
+        cmd_setup_workspace(adapter)
+    else:
+        # Default to --print if no flag is given.
+        cmd_setup_print(adapter)
+
+
 def _cmd_wrapper(projects: list[dict], hint: str | None, remainder: list[str]) -> None:
     """Non-interactive project resolver for VS Code / Cursor process wrapper use."""
     if remainder and remainder[0] == "--":
@@ -241,13 +265,17 @@ def main() -> None:
     args, claude_args = parser.parse_known_args()
 
     command: str | None = None
-    if claude_args and claude_args[0] in ("projects", "current", "doctor", "wrapper"):
+    if claude_args and claude_args[0] in ("projects", "current", "doctor", "wrapper", "setup"):
         command = claude_args.pop(0)
 
     hint: str | None = args.project or os.environ.get("CLAUDIO_PROJECT") or None
     interactive = not args.no_interactive
 
     config = merged_claudio_config()
+
+    if command == "setup":
+        _cmd_setup(claude_args)
+        return
 
     if not config:
         if command in ("projects", "current", "doctor", "wrapper"):
