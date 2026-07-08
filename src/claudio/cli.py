@@ -13,7 +13,7 @@ from claudio.config import (
     validate_projects,
 )
 from claudio.launcher import exec_claude
-from claudio.runtime import build_effective_env, build_settings_args, compile_anthropic_block
+from claudio.runtime import build_effective_env
 from claudio.secrets import resolve_op_references
 from claudio.selector import AmbiguousProject, ProjectNotFound, resolve_project
 
@@ -39,6 +39,17 @@ def _print_not_found_error(exc: ProjectNotFound) -> None:
     print("Available projects:", file=sys.stderr)
     for p in exc.available:
         print(f"  {p['name']}", file=sys.stderr)
+
+
+def _apply_project_env(project: dict) -> None:
+    """Resolve and inject project env vars into the current process environment."""
+    project_env = project.get("env", {})
+    if not project_env:
+        return
+    _, base_env = highest_claude_env()
+    effective_env = build_effective_env(base_env, project_env)
+    effective_env = resolve_op_references(effective_env)
+    os.environ.update(effective_env)
 
 
 def _cmd_projects(projects: list[dict]) -> None:
@@ -99,6 +110,47 @@ def _cmd_doctor(projects: list[dict]) -> None:
     print("No issues found.")
 
 
+def _cmd_wrapper(projects: list[dict], hint: str | None, remainder: list[str]) -> None:
+    """Non-interactive project resolver for VS Code / Cursor process wrapper use."""
+    if remainder and remainder[0] == "--":
+        remainder = remainder[1:]
+
+    if not remainder:
+        print(
+            "claudio wrapper: missing claude path\n"
+            "  Usage: claudio wrapper -- /path/to/claude [...args]\n"
+            "  Tip:   use 'which claude' to find the path",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    claude_path, *claude_args = remainder
+
+    try:
+        selected = resolve_project(projects, hint=hint, interactive=False)
+    except AmbiguousProject as exc:
+        print(
+            "claudio wrapper: cannot resolve project non-interactively.\n"
+            "\n"
+            "Fix options:\n"
+            "  1. Set CLAUDIO_PROJECT in the shell that starts your IDE:\n"
+            f'       export CLAUDIO_PROJECT="{exc.projects[0]["name"]}"\n'
+            "  2. Create .claude/claudio.settings.local.json with one project.\n"
+            "  3. Run `claudio setup vscode --workspace` to pin the project.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    except ProjectNotFound as exc:
+        _print_not_found_error(exc)
+        sys.exit(1)
+
+    if selected is None:
+        sys.exit(1)
+
+    _apply_project_env(selected)
+    exec_claude(claude_args, claude_path=claude_path)
+
+
 def _cmd_current(projects: list[dict], hint: str | None) -> None:
     try:
         selected = resolve_project(projects, hint=hint, interactive=False)
@@ -148,20 +200,17 @@ def main() -> None:
 
     args, claude_args = parser.parse_known_args()
 
-    # Subcommands: extract from the start of remaining args rather than using
-    # add_subparsers, which would conflict with unknown positionals forwarded to claude.
     command: str | None = None
-    if claude_args and claude_args[0] in ("projects", "current", "doctor"):
+    if claude_args and claude_args[0] in ("projects", "current", "doctor", "wrapper"):
         command = claude_args.pop(0)
 
-    # Resolve the project hint: explicit flag beats env var.
     hint: str | None = args.project or os.environ.get("CLAUDIO_PROJECT") or None
     interactive = not args.no_interactive
 
     config = merged_claudio_config()
 
     if not config:
-        if command in ("projects", "current", "doctor"):
+        if command in ("projects", "current", "doctor", "wrapper"):
             print("claudio: no projects configured", file=sys.stderr)
             sys.exit(1)
         exec_claude(claude_args)
@@ -185,6 +234,10 @@ def main() -> None:
         _cmd_doctor(projects)
         return
 
+    if command == "wrapper":
+        _cmd_wrapper(projects, hint, claude_args)
+        return
+
     try:
         selected = resolve_project(projects, hint=hint, interactive=interactive)
     except ProjectNotFound as exc:
@@ -197,15 +250,6 @@ def main() -> None:
     if selected is None:
         sys.exit(130)
 
-    # Compile anthropic: block first; explicit env wins on conflict.
-    anthropic_env = compile_anthropic_block(selected)
-    project_env = {**anthropic_env, **selected.get("env", {})}
-    extra_settings_args: list[str] = []
-    if project_env:
-        _, base_env = highest_claude_env()
-        effective_env = build_effective_env(base_env, project_env)
-        effective_env = resolve_op_references(effective_env)
-        extra_settings_args = build_settings_args(effective_env)
-
+    _apply_project_env(selected)
     print(f"Using project: {selected['name']}")
-    exec_claude(extra_settings_args + claude_args)
+    exec_claude(claude_args)
