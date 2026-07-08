@@ -11,6 +11,11 @@ dependencies = [
     "prompt-toolkit>=3.0.52",
 ]
 
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+]
+
 [project.scripts]
 claudio = "claudio.cli:main"
 

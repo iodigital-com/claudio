@@ -39,6 +39,7 @@ def main() -> None:
     if not config:
         # No claudio config at all — just launch claude directly.
         _exec_claude(claude_args)
+        return
 
     try:
         projects = validate_projects(config)
