@@ -29,6 +29,55 @@ def test_vscode_adapter_attributes():
 def test_cursor_adapter_attributes():
     assert CURSOR.name == "Cursor"
     assert "cursor" in CURSOR.settings_file.lower()
+    assert CURSOR.settings_key == VSCODE.settings_key  # same key, different file
+
+
+# ---------------------------------------------------------------------------
+# Cursor workspace — distinct settings path from VS Code
+# ---------------------------------------------------------------------------
+
+
+def test_setup_cursor_workspace_writes_cursor_settings(tmp_path):
+    with patch("claudio.setup.shutil.which", side_effect=lambda n: f"/usr/bin/{n}"):
+        cmd_setup_workspace(CURSOR, workspace_root=tmp_path)
+    settings_path = tmp_path / ".cursor" / "settings.json"
+    assert settings_path.exists()
+    settings = json.loads(settings_path.read_text())
+    assert CURSOR.settings_key in settings
+
+
+def test_setup_cursor_workspace_does_not_touch_vscode_settings(tmp_path):
+    with patch("claudio.setup.shutil.which", side_effect=lambda n: f"/usr/bin/{n}"):
+        cmd_setup_workspace(CURSOR, workspace_root=tmp_path)
+    vscode_settings = tmp_path / ".vscode" / "settings.json"
+    assert not vscode_settings.exists()
+
+
+def test_setup_cursor_and_vscode_share_shim(tmp_path):
+    """Both editors point to the same shim; running setup for both is idempotent."""
+    with patch("claudio.setup.shutil.which", side_effect=lambda n: f"/usr/bin/{n}"):
+        cmd_setup_workspace(VSCODE, workspace_root=tmp_path)
+        cmd_setup_workspace(CURSOR, workspace_root=tmp_path)
+    shim = tmp_path / ".claude" / "claudio-wrapper"
+    assert shim.exists()
+    vscode_s = json.loads((tmp_path / ".vscode" / "settings.json").read_text())
+    cursor_s = json.loads((tmp_path / ".cursor" / "settings.json").read_text())
+    assert vscode_s[VSCODE.settings_key] == cursor_s[CURSOR.settings_key] == str(shim)
+
+
+def test_setup_cursor_print_shows_cursor_name(capsys):
+    with patch("claudio.setup.shutil.which", side_effect=lambda n: f"/usr/bin/{n}"):
+        cmd_setup_print(CURSOR)
+    out = capsys.readouterr().out
+    assert "Cursor" in out
+
+
+def test_main_setup_cursor_workspace(monkeypatch, tmp_path):
+    monkeypatch.setattr(sys, "argv", ["claudio", "setup", "cursor", "--workspace"])
+    with patch("claudio.setup.shutil.which", side_effect=lambda n: f"/usr/bin/{n}"), \
+         patch("claudio.setup.Path.cwd", return_value=tmp_path):
+        main()
+    assert (tmp_path / ".cursor" / "settings.json").exists()
 
 
 # ---------------------------------------------------------------------------
