@@ -13,7 +13,7 @@ from claudio.config import (
     validate_projects,
 )
 from claudio.launcher import exec_claude
-from claudio.runtime import build_effective_env, build_settings_args
+from claudio.runtime import build_effective_env, build_settings_args, build_temp_file_args
 from claudio.secrets import resolve_op_references
 from claudio.selector import AmbiguousProject, ProjectNotFound, resolve_project
 
@@ -199,11 +199,16 @@ def main() -> None:
 
     project_env = selected.get("env", {})
     extra_settings_args: list[str] = []
+    temp_file: str | None = None
     if project_env:
         _, base_env = highest_claude_env()
         effective_env = build_effective_env(base_env, project_env)
         effective_env = resolve_op_references(effective_env)
-        extra_settings_args = build_settings_args(effective_env)
+        inject_mode = os.environ.get("CLAUDIO_INJECT_MODE", "settings-arg")
+        if inject_mode == "temp-file":
+            extra_settings_args, temp_file = build_temp_file_args(effective_env)
+        else:
+            extra_settings_args = build_settings_args(effective_env)
 
     print(f"Using project: {selected['name']}")
-    exec_claude(extra_settings_args + claude_args)
+    exec_claude(extra_settings_args + claude_args, temp_file=temp_file)
