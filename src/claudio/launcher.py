@@ -7,10 +7,10 @@ import subprocess
 import sys
 
 
-def exec_claude(claude_args: list[str]) -> None:
-    """Replace the current process with `claude`."""
+def exec_claude(claude_args: list[str], claude_path: str = "claude") -> None:
+    """Replace the current process with *claude_path*."""
     if sys.platform == "win32":
-        result = subprocess.run(["claude", *claude_args], shell=True)
+        result = subprocess.run([claude_path, *claude_args], shell=True)
         sys.exit(result.returncode)
     else:
-        os.execvp("claude", ["claude", *claude_args])
+        os.execvp(claude_path, [claude_path, *claude_args])

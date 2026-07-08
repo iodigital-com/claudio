@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import json
+import os
 import sys
 from unittest.mock import MagicMock, patch
 
@@ -162,7 +162,7 @@ def test_main_select_project_cancel_exits_130(monkeypatch):
 # ---------------------------------------------------------------------------
 
 
-def test_main_op_reference_resolved_before_forwarding(monkeypatch):
+def test_main_op_reference_resolved_and_set_in_env(monkeypatch):
     monkeypatch.setattr(sys, "argv", ["claudio"])
     project = _make_project("work", env={"ANTHROPIC_API_KEY": "op://vault/item/field"})
 
@@ -173,18 +173,14 @@ def test_main_op_reference_resolved_before_forwarding(monkeypatch):
          patch("claudio.cli.validate_projects", return_value=[project]), \
          patch("claudio.cli.highest_claude_env", return_value=(None, {})), \
          patch("claudio.cli.resolve_op_references", side_effect=fake_resolve) as mock_resolve, \
-         patch("claudio.cli.exec_claude") as mock_exec:
+         patch("claudio.cli.exec_claude"):
         main()
 
     mock_resolve.assert_called_once()
-    exec_args = mock_exec.call_args[0][0]
-    assert "--settings" in exec_args
-    settings_json = exec_args[exec_args.index("--settings") + 1]
-    settings = json.loads(settings_json)
-    assert settings["env"]["ANTHROPIC_API_KEY"] == "resolved-secret"
+    assert os.environ.get("ANTHROPIC_API_KEY") == "resolved-secret"
 
 
-def test_main_extra_args_forwarded_alongside_settings(monkeypatch):
+def test_main_extra_args_forwarded_to_claude(monkeypatch):
     monkeypatch.setattr(sys, "argv", ["claudio", "--verbose"])
     project = _make_project("work", env={"ANTHROPIC_API_KEY": "sk-test"})
 
@@ -199,7 +195,7 @@ def test_main_extra_args_forwarded_alongside_settings(monkeypatch):
     assert "--verbose" in exec_args
 
 
-def test_main_no_env_in_project_launches_claude_without_settings_flag(monkeypatch):
+def test_main_no_env_in_project_launches_claude_with_original_args_only(monkeypatch):
     monkeypatch.setattr(sys, "argv", ["claudio"])
     project = _make_project("work")  # no env
 
@@ -209,7 +205,7 @@ def test_main_no_env_in_project_launches_claude_without_settings_flag(monkeypatc
         main()
 
     exec_args = mock_exec.call_args[0][0]
-    assert "--settings" not in exec_args
+    assert exec_args == []
 
 
 # ---------------------------------------------------------------------------
@@ -520,105 +516,3 @@ def test_main_current_subcommand_ambiguous_falls_back_to_last(monkeypatch, capsy
 
     assert capsys.readouterr().out.strip() == "work"
 
-
-# ---------------------------------------------------------------------------
-# anthropic block compilation
-# ---------------------------------------------------------------------------
-
-
-def test_main_anthropic_bearer_sets_auth_token(monkeypatch):
-    monkeypatch.setattr(sys, "argv", ["claudio"])
-    project = {
-        "name": "work",
-        "anthropic": {
-            "baseUrl": "https://proxy.example.com",
-            "auth": {"type": "bearer", "token": "my-token"},
-        },
-    }
-
-    with patch("claudio.cli.merged_claudio_config", return_value={"projects": [project]}), \
-         patch("claudio.cli.validate_projects", return_value=[project]), \
-         patch("claudio.cli.highest_claude_env", return_value=(None, {})), \
-         patch("claudio.cli.resolve_op_references", side_effect=lambda e: e), \
-         patch("claudio.cli.resolve_project", return_value=project), \
-         patch("claudio.cli.exec_claude") as mock_exec:
-        main()
-
-    args = mock_exec.call_args[0][0]
-    settings = json.loads(args[args.index("--settings") + 1])
-    assert settings["env"]["ANTHROPIC_BASE_URL"] == "https://proxy.example.com"
-    assert settings["env"]["ANTHROPIC_AUTH_TOKEN"] == "my-token"
-
-
-def test_main_explicit_env_wins_over_anthropic_block(monkeypatch):
-    """Explicit env key overrides the same key derived from the anthropic block."""
-    monkeypatch.setattr(sys, "argv", ["claudio"])
-    project = {
-        "name": "work",
-        "anthropic": {
-            "auth": {"type": "bearer", "token": "anthropic-token"},
-        },
-        "env": {
-            "ANTHROPIC_AUTH_TOKEN": "explicit-token",
-        },
-    }
-
-    with patch("claudio.cli.merged_claudio_config", return_value={"projects": [project]}), \
-         patch("claudio.cli.validate_projects", return_value=[project]), \
-         patch("claudio.cli.highest_claude_env", return_value=(None, {})), \
-         patch("claudio.cli.resolve_op_references", side_effect=lambda e: e), \
-         patch("claudio.cli.resolve_project", return_value=project), \
-         patch("claudio.cli.exec_claude") as mock_exec:
-        main()
-
-    args = mock_exec.call_args[0][0]
-    settings = json.loads(args[args.index("--settings") + 1])
-    assert settings["env"]["ANTHROPIC_AUTH_TOKEN"] == "explicit-token"
-
-
-def test_main_anthropic_api_key_sets_api_key(monkeypatch):
-    monkeypatch.setattr(sys, "argv", ["claudio"])
-    project = {
-        "name": "work",
-        "anthropic": {
-            "auth": {"type": "apiKey", "apiKey": "sk-test"},
-        },
-    }
-
-    with patch("claudio.cli.merged_claudio_config", return_value={"projects": [project]}), \
-         patch("claudio.cli.validate_projects", return_value=[project]), \
-         patch("claudio.cli.highest_claude_env", return_value=(None, {})), \
-         patch("claudio.cli.resolve_op_references", side_effect=lambda e: e), \
-         patch("claudio.cli.resolve_project", return_value=project), \
-         patch("claudio.cli.exec_claude") as mock_exec:
-        main()
-
-    args = mock_exec.call_args[0][0]
-    settings = json.loads(args[args.index("--settings") + 1])
-    assert settings["env"]["ANTHROPIC_API_KEY"] == "sk-test"
-
-
-def test_main_anthropic_op_reference_resolved(monkeypatch):
-    """op:// in anthropic.auth.token is resolved before launch."""
-    monkeypatch.setattr(sys, "argv", ["claudio"])
-    project = {
-        "name": "work",
-        "anthropic": {
-            "auth": {"type": "bearer", "token": "op://vault/item/token"},
-        },
-    }
-
-    def fake_resolve(env):
-        return {k: "resolved-secret" if v.startswith("op://") else v for k, v in env.items()}
-
-    with patch("claudio.cli.merged_claudio_config", return_value={"projects": [project]}), \
-         patch("claudio.cli.validate_projects", return_value=[project]), \
-         patch("claudio.cli.highest_claude_env", return_value=(None, {})), \
-         patch("claudio.cli.resolve_op_references", side_effect=fake_resolve), \
-         patch("claudio.cli.resolve_project", return_value=project), \
-         patch("claudio.cli.exec_claude") as mock_exec:
-        main()
-
-    args = mock_exec.call_args[0][0]
-    settings = json.loads(args[args.index("--settings") + 1])
-    assert settings["env"]["ANTHROPIC_AUTH_TOKEN"] == "resolved-secret"
