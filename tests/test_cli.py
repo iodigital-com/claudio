@@ -11,6 +11,7 @@ import pytest
 from claudio.cli import main
 from claudio.config import ConfigError
 from claudio.secrets import resolve_op_references
+from claudio.selector import AmbiguousProject, ProjectNotFound
 
 
 # ---------------------------------------------------------------------------
@@ -116,10 +117,10 @@ def test_main_single_project_auto_selected(monkeypatch):
          patch("claudio.cli.validate_projects", return_value=[project]), \
          patch("claudio.cli.highest_claude_env", return_value=(None, {})), \
          patch("claudio.cli.resolve_op_references", return_value={"ANTHROPIC_API_KEY": "sk-test"}), \
-         patch("claudio.cli.select_project") as mock_select, \
+         patch("claudio.cli.resolve_project", return_value=project) as mock_resolve, \
          patch("claudio.cli.exec_claude"):
         main()
-    mock_select.assert_not_called()
+    mock_resolve.assert_called_once_with([project], hint=None, interactive=True)
 
 
 # ---------------------------------------------------------------------------
@@ -127,17 +128,17 @@ def test_main_single_project_auto_selected(monkeypatch):
 # ---------------------------------------------------------------------------
 
 
-def test_main_multiple_projects_calls_select_project(monkeypatch):
+def test_main_multiple_projects_calls_resolve_project(monkeypatch):
     monkeypatch.setattr(sys, "argv", ["claudio"])
     projects = [_make_project("work"), _make_project("personal")]
     selected = projects[0]
 
     with patch("claudio.cli.merged_claudio_config", return_value={"projects": projects}), \
          patch("claudio.cli.validate_projects", return_value=projects), \
-         patch("claudio.cli.select_project", return_value=selected) as mock_select, \
+         patch("claudio.cli.resolve_project", return_value=selected) as mock_resolve, \
          patch("claudio.cli.exec_claude"):
         main()
-    mock_select.assert_called_once_with(projects)
+    mock_resolve.assert_called_once_with(projects, hint=None, interactive=True)
 
 
 def test_main_select_project_cancel_exits_130(monkeypatch):
@@ -146,7 +147,7 @@ def test_main_select_project_cancel_exits_130(monkeypatch):
 
     with patch("claudio.cli.merged_claudio_config", return_value={"projects": projects}), \
          patch("claudio.cli.validate_projects", return_value=projects), \
-         patch("claudio.cli.select_project", return_value=None), \
+         patch("claudio.cli.resolve_project", return_value=None), \
          patch("claudio.cli.exec_claude"):
         with pytest.raises(SystemExit) as exc_info:
             main()
@@ -206,3 +207,208 @@ def test_main_no_env_in_project_launches_claude_without_settings_flag(monkeypatc
 
     exec_args = mock_exec.call_args[0][0]
     assert "--settings" not in exec_args
+
+
+# ---------------------------------------------------------------------------
+# main — --project flag
+# ---------------------------------------------------------------------------
+
+
+def test_main_project_flag_selects_by_name(monkeypatch):
+    monkeypatch.setattr(sys, "argv", ["claudio", "--project", "personal"])
+    projects = [_make_project("work"), _make_project("personal")]
+
+    with patch("claudio.cli.merged_claudio_config", return_value={"projects": projects}), \
+         patch("claudio.cli.validate_projects", return_value=projects), \
+         patch("claudio.cli.resolve_project", return_value=projects[1]) as mock_resolve, \
+         patch("claudio.cli.exec_claude"):
+        main()
+
+    mock_resolve.assert_called_once_with(projects, hint="personal", interactive=True)
+
+
+def test_main_project_flag_unknown_name_exits(monkeypatch):
+    monkeypatch.setattr(sys, "argv", ["claudio", "--project", "unknown"])
+    projects = [_make_project("work"), _make_project("personal")]
+
+    with patch("claudio.cli.merged_claudio_config", return_value={"projects": projects}), \
+         patch("claudio.cli.validate_projects", return_value=projects), \
+         patch("claudio.cli.resolve_project",
+               side_effect=ProjectNotFound("unknown", projects)):
+        with pytest.raises(SystemExit) as exc_info:
+            main()
+    assert exc_info.value.code == 1
+
+
+# ---------------------------------------------------------------------------
+# main — CLAUDIO_PROJECT env var
+# ---------------------------------------------------------------------------
+
+
+def test_main_env_var_selects_by_name(monkeypatch):
+    monkeypatch.setattr(sys, "argv", ["claudio"])
+    monkeypatch.setenv("CLAUDIO_PROJECT", "personal")
+    projects = [_make_project("work"), _make_project("personal")]
+
+    with patch("claudio.cli.merged_claudio_config", return_value={"projects": projects}), \
+         patch("claudio.cli.validate_projects", return_value=projects), \
+         patch("claudio.cli.resolve_project", return_value=projects[1]) as mock_resolve, \
+         patch("claudio.cli.exec_claude"):
+        main()
+
+    mock_resolve.assert_called_once_with(projects, hint="personal", interactive=True)
+
+
+def test_main_project_flag_beats_env_var(monkeypatch):
+    monkeypatch.setattr(sys, "argv", ["claudio", "--project", "work"])
+    monkeypatch.setenv("CLAUDIO_PROJECT", "personal")
+    projects = [_make_project("work"), _make_project("personal")]
+
+    with patch("claudio.cli.merged_claudio_config", return_value={"projects": projects}), \
+         patch("claudio.cli.validate_projects", return_value=projects), \
+         patch("claudio.cli.resolve_project", return_value=projects[0]) as mock_resolve, \
+         patch("claudio.cli.exec_claude"):
+        main()
+
+    mock_resolve.assert_called_once_with(projects, hint="work", interactive=True)
+
+
+# ---------------------------------------------------------------------------
+# main — --no-interactive
+# ---------------------------------------------------------------------------
+
+
+def test_main_no_interactive_passes_flag_to_resolve(monkeypatch):
+    monkeypatch.setattr(sys, "argv", ["claudio", "--no-interactive"])
+    projects = [_make_project("work"), _make_project("personal")]
+
+    with patch("claudio.cli.merged_claudio_config", return_value={"projects": projects}), \
+         patch("claudio.cli.validate_projects", return_value=projects), \
+         patch("claudio.cli.resolve_project",
+               side_effect=AmbiguousProject(projects)):
+        with pytest.raises(SystemExit) as exc_info:
+            main()
+    assert exc_info.value.code == 1
+
+
+def test_main_no_interactive_single_project_succeeds(monkeypatch):
+    monkeypatch.setattr(sys, "argv", ["claudio", "--no-interactive"])
+    project = _make_project("work")
+
+    with patch("claudio.cli.merged_claudio_config", return_value={"projects": [project]}), \
+         patch("claudio.cli.validate_projects", return_value=[project]), \
+         patch("claudio.cli.resolve_project", return_value=project) as mock_resolve, \
+         patch("claudio.cli.exec_claude"):
+        main()
+
+    mock_resolve.assert_called_once_with([project], hint=None, interactive=False)
+
+
+# ---------------------------------------------------------------------------
+# resolve_project — unit tests
+# ---------------------------------------------------------------------------
+
+
+def test_resolve_project_hint_matches_by_name():
+    from claudio.selector import resolve_project
+    projects = [_make_project("work"), _make_project("personal")]
+    result = resolve_project(projects, hint="personal")
+    assert result["name"] == "personal"
+
+
+def test_resolve_project_hint_not_found_raises():
+    from claudio.selector import resolve_project
+    projects = [_make_project("work")]
+    with pytest.raises(ProjectNotFound) as exc_info:
+        resolve_project(projects, hint="missing")
+    assert exc_info.value.name == "missing"
+    assert exc_info.value.available == projects
+
+
+def test_resolve_project_single_auto_selects():
+    from claudio.selector import resolve_project
+    project = _make_project("work")
+    result = resolve_project([project])
+    assert result["name"] == "work"
+
+
+def test_resolve_project_multiple_non_interactive_raises():
+    from claudio.selector import resolve_project
+    projects = [_make_project("work"), _make_project("personal")]
+    with pytest.raises(AmbiguousProject) as exc_info:
+        resolve_project(projects, interactive=False)
+    assert len(exc_info.value.projects) == 2
+
+
+# ---------------------------------------------------------------------------
+# claudio projects subcommand
+# ---------------------------------------------------------------------------
+
+
+def test_main_projects_subcommand_lists_all(monkeypatch, capsys):
+    monkeypatch.setattr(sys, "argv", ["claudio", "projects"])
+    projects = [_make_project("work"), _make_project("personal")]
+
+    with patch("claudio.cli.merged_claudio_config", return_value={"projects": projects}), \
+         patch("claudio.cli.validate_projects", return_value=projects), \
+         patch("claudio.cli.load_user_settings", return_value={}):
+        main()
+
+    out = capsys.readouterr().out
+    assert "work" in out
+    assert "personal" in out
+
+
+def test_main_projects_subcommand_marks_last(monkeypatch, capsys):
+    monkeypatch.setattr(sys, "argv", ["claudio", "projects"])
+    projects = [_make_project("work"), _make_project("personal")]
+
+    with patch("claudio.cli.merged_claudio_config", return_value={"projects": projects}), \
+         patch("claudio.cli.validate_projects", return_value=projects), \
+         patch("claudio.cli.load_user_settings", return_value={"lastProject": "personal"}):
+        main()
+
+    out = capsys.readouterr().out
+    lines = out.splitlines()
+    personal_line = next(l for l in lines if "personal" in l)
+    assert "*" in personal_line
+
+
+# ---------------------------------------------------------------------------
+# claudio current subcommand
+# ---------------------------------------------------------------------------
+
+
+def test_main_current_subcommand_prints_name(monkeypatch, capsys):
+    monkeypatch.setattr(sys, "argv", ["claudio", "current"])
+    project = _make_project("work")
+
+    with patch("claudio.cli.merged_claudio_config", return_value={"projects": [project]}), \
+         patch("claudio.cli.validate_projects", return_value=[project]), \
+         patch("claudio.cli.resolve_project", return_value=project):
+        main()
+
+    assert capsys.readouterr().out.strip() == "work"
+
+
+def test_main_current_subcommand_no_config_exits(monkeypatch):
+    monkeypatch.setattr(sys, "argv", ["claudio", "current"])
+
+    with patch("claudio.cli.merged_claudio_config", return_value={}):
+        with pytest.raises(SystemExit) as exc_info:
+            main()
+    assert exc_info.value.code == 1
+
+
+def test_main_current_subcommand_ambiguous_falls_back_to_last(monkeypatch, capsys):
+    monkeypatch.setattr(sys, "argv", ["claudio", "current"])
+    projects = [_make_project("work"), _make_project("personal")]
+
+    with patch("claudio.cli.merged_claudio_config", return_value={"projects": projects}), \
+         patch("claudio.cli.validate_projects", return_value=projects), \
+         patch("claudio.cli.resolve_project",
+               side_effect=AmbiguousProject(projects)), \
+         patch("claudio.cli.load_user_settings", return_value={"lastProject": "work"}):
+        main()
+
+    assert capsys.readouterr().out.strip() == "work"
