@@ -39,11 +39,12 @@ def test_resolve_op_references_passes_through_plain_values():
 def test_resolve_op_references_calls_op_read_for_op_ref():
     fake = MagicMock()
     fake.returncode = 0
-    fake.stdout = "resolved-secret\n"
-    with patch("claudio.secrets.subprocess.run", return_value=fake) as mock_run:
+    fake.stdout = "resolved-secret"
+    with patch("claudio.secrets.shutil.which", return_value="op"), \
+         patch("claudio.secrets.subprocess.run", return_value=fake) as mock_run:
         result = resolve_op_references({"KEY": "op://vault/item/field"})
     mock_run.assert_called_once()
-    assert mock_run.call_args[0][0] == ["op", "read", "op://vault/item/field"]
+    assert mock_run.call_args[0][0] == ["op", "read", "--no-newline", "op://vault/item/field"]
     assert result["KEY"] == "resolved-secret"
 
 
@@ -51,7 +52,8 @@ def test_resolve_op_references_exits_on_op_failure():
     fake = MagicMock()
     fake.returncode = 1
     fake.stderr = "item not found"
-    with patch("claudio.secrets.subprocess.run", return_value=fake):
+    with patch("claudio.secrets.shutil.which", return_value="op"), \
+         patch("claudio.secrets.subprocess.run", return_value=fake):
         with pytest.raises(SystemExit) as exc_info:
             resolve_op_references({"KEY": "op://vault/item/field"})
     assert exc_info.value.code == 1
@@ -60,8 +62,9 @@ def test_resolve_op_references_exits_on_op_failure():
 def test_resolve_op_references_mixed_values():
     fake = MagicMock()
     fake.returncode = 0
-    fake.stdout = "secret\n"
-    with patch("claudio.secrets.subprocess.run", return_value=fake):
+    fake.stdout = "secret"
+    with patch("claudio.secrets.shutil.which", return_value="op"), \
+         patch("claudio.secrets.subprocess.run", return_value=fake):
         result = resolve_op_references({
             "PLAIN": "plain-value",
             "SECRET": "op://vault/item/field",
