@@ -49,6 +49,56 @@ def _cmd_projects(projects: list[dict]) -> None:
         print(f"  {marker} {p['name']}")
 
 
+_CREDENTIAL_VARS = ("ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_API_KEY")
+_PROXY_VAR = "ANTHROPIC_BASE_URL"
+_KNOWN_VARS = (_PROXY_VAR,) + _CREDENTIAL_VARS
+_VAR_WIDTH = max(len(v) for v in _KNOWN_VARS)  # 20
+
+
+def _cmd_doctor(projects: list[dict]) -> None:
+    """Check project config health. Exits 1 if any warnings are found."""
+    print(f"{len(projects)} project(s) configured.\n")
+    warnings = 0
+
+    for proj in projects:
+        name = proj["name"]
+        env = proj.get("env", {})
+        print(f"  {name}")
+
+        for var in _KNOWN_VARS:
+            if var in env:
+                val = env[var]
+                src = "1Password" if val.startswith("op://") else "plaintext"
+                print(f"    {var:<{_VAR_WIDTH}}  ({src})")
+
+        other_vars = sorted(k for k in env if k not in set(_KNOWN_VARS))
+        for var in other_vars:
+            print(f"    {var}")
+
+        has_api_key = "ANTHROPIC_API_KEY" in env
+        has_auth_token = "ANTHROPIC_AUTH_TOKEN" in env
+
+        if not has_api_key and not has_auth_token:
+            print("    warning: no credential configured — set ANTHROPIC_AUTH_TOKEN or ANTHROPIC_API_KEY")
+            warnings += 1
+        elif has_api_key and has_auth_token:
+            print(
+                "    warning: both ANTHROPIC_API_KEY and ANTHROPIC_AUTH_TOKEN are set"
+                " — ANTHROPIC_AUTH_TOKEN takes precedence; remove one"
+            )
+            warnings += 1
+
+        if has_auth_token and _PROXY_VAR not in env:
+            print("    note: ANTHROPIC_AUTH_TOKEN set without ANTHROPIC_BASE_URL — is a proxy URL intended?")
+
+        print()
+
+    if warnings:
+        print(f"{warnings} warning(s).")
+        sys.exit(1)
+    print("No issues found.")
+
+
 def _cmd_current(projects: list[dict], hint: str | None) -> None:
     try:
         selected = resolve_project(projects, hint=hint, interactive=False)
@@ -101,7 +151,7 @@ def main() -> None:
     # Subcommands: extract from the start of remaining args rather than using
     # add_subparsers, which would conflict with unknown positionals forwarded to claude.
     command: str | None = None
-    if claude_args and claude_args[0] in ("projects", "current"):
+    if claude_args and claude_args[0] in ("projects", "current", "doctor"):
         command = claude_args.pop(0)
 
     # Resolve the project hint: explicit flag beats env var.
@@ -111,7 +161,7 @@ def main() -> None:
     config = merged_claudio_config()
 
     if not config:
-        if command in ("projects", "current"):
+        if command in ("projects", "current", "doctor"):
             print("claudio: no projects configured", file=sys.stderr)
             sys.exit(1)
         exec_claude(claude_args)
@@ -129,6 +179,10 @@ def main() -> None:
 
     if command == "current":
         _cmd_current(projects, hint)
+        return
+
+    if command == "doctor":
+        _cmd_doctor(projects)
         return
 
     try:

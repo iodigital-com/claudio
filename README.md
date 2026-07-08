@@ -50,6 +50,9 @@ claudio
 # Pass arguments through to claude
 claudio --model claude-4-5-sonnet -p "hello"
 
+# Check config health (credentials, conflicts)
+claudio doctor
+
 # Help
 claudio --help
 ```
@@ -79,23 +82,67 @@ Create a `claudio.settings.json` (shared) or `claudio.settings.local.json` (git-
 
 - **`projects`** — array of project objects:
   - **`name`** (string, required) — display name for the project.
-  - **`env`** (object, optional) — key-value pairs of environment variables. These are **merged** into the `env` of the Claude Code config, overriding only the keys you specify. Values starting with `op://` are resolved via the 1Password CLI at runtime (see below).
+  - **`env`** (object, optional) — key-value pairs merged into the Claude Code `env`. Values starting with `op://` are resolved via the 1Password CLI at runtime.
 
-Example config:
+### Supported env vars
+
+| Variable | Purpose |
+| --- | --- |
+| `ANTHROPIC_AUTH_TOKEN` | Bearer token — for company proxies or OAuth tokens |
+| `ANTHROPIC_API_KEY` | API key — for direct Anthropic access or proxies that require one |
+| `ANTHROPIC_BASE_URL` | Endpoint URL — required when routing through a company proxy |
+
+Set `ANTHROPIC_AUTH_TOKEN` **or** `ANTHROPIC_API_KEY`, not both. If both are present, `ANTHROPIC_AUTH_TOKEN` takes precedence in Claude Code. Use `claudio doctor` to catch conflicts.
+
+### Examples
+
+**Company proxy (bearer token):**
 
 ```json
 {
   "projects": [
     {
-      "name": "Customer 1",
+      "name": "Klant A",
       "env": {
-        "ANTHROPIC_AUTH_TOKEN": "1Password reference - op://....."
+        "ANTHROPIC_BASE_URL": "https://proxy.company.com",
+        "ANTHROPIC_AUTH_TOKEN": "op://Employee/Klant A/token"
+      }
+    }
+  ]
+}
+```
+
+**Direct Anthropic API:**
+
+```json
+{
+  "projects": [
+    {
+      "name": "Personal",
+      "env": {
+        "ANTHROPIC_API_KEY": "op://Personal/Anthropic/credential"
+      }
+    }
+  ]
+}
+```
+
+**Multiple clients, mixed setup:**
+
+```json
+{
+  "projects": [
+    {
+      "name": "Klant A",
+      "env": {
+        "ANTHROPIC_BASE_URL": "https://proxy.klantA.com",
+        "ANTHROPIC_AUTH_TOKEN": "op://Employee/Klant A/token"
       }
     },
     {
-      "name": "Customer 2",
+      "name": "Personal",
       "env": {
-        "ANTHROPIC_AUTH_TOKEN": "sk-..."
+        "ANTHROPIC_API_KEY": "op://Personal/Anthropic/credential"
       }
     }
   ]
@@ -110,9 +157,10 @@ If you always use the same project in a given repo, create a `.claude/claudio.se
 {
   "projects": [
     {
-      "name": "Customer 1",
+      "name": "Klant A",
       "env": {
-        "ANTHROPIC_AUTH_TOKEN": "op://....."
+        "ANTHROPIC_BASE_URL": "https://proxy.klantA.com",
+        "ANTHROPIC_AUTH_TOKEN": "op://Employee/Klant A/token"
       }
     }
   ]

@@ -400,6 +400,110 @@ def test_main_current_subcommand_no_config_exits(monkeypatch):
     assert exc_info.value.code == 1
 
 
+# ---------------------------------------------------------------------------
+# claudio doctor subcommand
+# ---------------------------------------------------------------------------
+
+
+def _make_project_env(name, env):
+    return {"name": name, "env": env}
+
+
+def test_main_doctor_no_config_exits(monkeypatch):
+    monkeypatch.setattr(sys, "argv", ["claudio", "doctor"])
+    with patch("claudio.cli.merged_claudio_config", return_value={}):
+        with pytest.raises(SystemExit) as exc_info:
+            main()
+    assert exc_info.value.code == 1
+
+
+def test_main_doctor_healthy_bearer_exits_0(monkeypatch, capsys):
+    monkeypatch.setattr(sys, "argv", ["claudio", "doctor"])
+    project = _make_project_env("Klant A", {
+        "ANTHROPIC_BASE_URL": "https://proxy.company.com",
+        "ANTHROPIC_AUTH_TOKEN": "op://Employee/KlantA/token",
+    })
+    with patch("claudio.cli.merged_claudio_config", return_value={"projects": [project]}), \
+         patch("claudio.cli.validate_projects", return_value=[project]):
+        main()
+    out = capsys.readouterr().out
+    assert "warning" not in out
+    assert "No issues found" in out
+
+
+def test_main_doctor_healthy_api_key_exits_0(monkeypatch, capsys):
+    monkeypatch.setattr(sys, "argv", ["claudio", "doctor"])
+    project = _make_project_env("Personal", {"ANTHROPIC_API_KEY": "op://Personal/Anthropic/credential"})
+    with patch("claudio.cli.merged_claudio_config", return_value={"projects": [project]}), \
+         patch("claudio.cli.validate_projects", return_value=[project]):
+        main()
+    out = capsys.readouterr().out
+    assert "warning" not in out
+
+
+def test_main_doctor_no_credential_warns_exits_1(monkeypatch, capsys):
+    monkeypatch.setattr(sys, "argv", ["claudio", "doctor"])
+    project = {"name": "Empty"}
+    with patch("claudio.cli.merged_claudio_config", return_value={"projects": [project]}), \
+         patch("claudio.cli.validate_projects", return_value=[project]):
+        with pytest.raises(SystemExit) as exc_info:
+            main()
+    assert exc_info.value.code == 1
+    assert "warning" in capsys.readouterr().out
+
+
+def test_main_doctor_both_credentials_warns_exits_1(monkeypatch, capsys):
+    monkeypatch.setattr(sys, "argv", ["claudio", "doctor"])
+    project = _make_project_env("Conflict", {
+        "ANTHROPIC_API_KEY": "sk-test",
+        "ANTHROPIC_AUTH_TOKEN": "token",
+    })
+    with patch("claudio.cli.merged_claudio_config", return_value={"projects": [project]}), \
+         patch("claudio.cli.validate_projects", return_value=[project]):
+        with pytest.raises(SystemExit) as exc_info:
+            main()
+    assert exc_info.value.code == 1
+    out = capsys.readouterr().out
+    assert "warning" in out
+    assert "ANTHROPIC_AUTH_TOKEN" in out
+    assert "ANTHROPIC_API_KEY" in out
+
+
+def test_main_doctor_op_ref_shown_as_1password(monkeypatch, capsys):
+    monkeypatch.setattr(sys, "argv", ["claudio", "doctor"])
+    project = _make_project_env("Work", {
+        "ANTHROPIC_BASE_URL": "https://proxy.company.com",
+        "ANTHROPIC_AUTH_TOKEN": "op://vault/item/field",
+    })
+    with patch("claudio.cli.merged_claudio_config", return_value={"projects": [project]}), \
+         patch("claudio.cli.validate_projects", return_value=[project]):
+        main()
+    assert "1Password" in capsys.readouterr().out
+
+
+def test_main_doctor_auth_token_without_base_url_shows_note_exits_0(monkeypatch, capsys):
+    monkeypatch.setattr(sys, "argv", ["claudio", "doctor"])
+    project = _make_project_env("Work", {"ANTHROPIC_AUTH_TOKEN": "op://vault/item/field"})
+    with patch("claudio.cli.merged_claudio_config", return_value={"projects": [project]}), \
+         patch("claudio.cli.validate_projects", return_value=[project]):
+        main()
+    out = capsys.readouterr().out
+    assert "note" in out
+    assert "warning" not in out
+
+
+def test_main_doctor_plaintext_shown_as_plaintext(monkeypatch, capsys):
+    monkeypatch.setattr(sys, "argv", ["claudio", "doctor"])
+    project = _make_project_env("Work", {
+        "ANTHROPIC_BASE_URL": "https://proxy.company.com",
+        "ANTHROPIC_AUTH_TOKEN": "my-token",
+    })
+    with patch("claudio.cli.merged_claudio_config", return_value={"projects": [project]}), \
+         patch("claudio.cli.validate_projects", return_value=[project]):
+        main()
+    assert "plaintext" in capsys.readouterr().out
+
+
 def test_main_current_subcommand_ambiguous_falls_back_to_last(monkeypatch, capsys):
     monkeypatch.setattr(sys, "argv", ["claudio", "current"])
     projects = [_make_project("work"), _make_project("personal")]
