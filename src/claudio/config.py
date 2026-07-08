@@ -202,5 +202,3 @@ def validate_projects(data: dict[str, Any]) -> list[dict[str, Any]]:
                     f"projects[{i}].env.{k} must be a string"
                 )
     return projects
-
-

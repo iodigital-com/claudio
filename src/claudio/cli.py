@@ -2,22 +2,22 @@
 
 from __future__ import annotations
 
-import argparse
-import json
-import os
-import subprocess
 import sys
 
-from claudio.projects import select_project
-from claudio.settings import (
+from claudio.config import (
     ConfigError,
-    merged_claudio_config,
     highest_claude_env,
+    merged_claudio_config,
     validate_projects,
 )
+from claudio.launcher import exec_claude
+from claudio.runtime import build_effective_env, build_settings_args
+from claudio.secrets import resolve_op_references
+from claudio.selector import select_project
 
 
 def main() -> None:
+    import argparse
     from importlib.metadata import version
 
     parser = argparse.ArgumentParser(
@@ -38,7 +38,7 @@ def main() -> None:
 
     if not config:
         # No claudio config at all — just launch claude directly.
-        _exec_claude(claude_args)
+        exec_claude(claude_args)
         return
 
     try:
@@ -58,39 +58,9 @@ def main() -> None:
     extra_settings_args: list[str] = []
     if project_env:
         _, base_env = highest_claude_env()
-        merged = {**base_env, **project_env}
-        merged = _resolve_op_references(merged)
-        extra_settings_args = ["--settings", json.dumps({"env": merged})]
+        effective_env = build_effective_env(base_env, project_env)
+        effective_env = resolve_op_references(effective_env)
+        extra_settings_args = build_settings_args(effective_env)
 
     print(f"Using project: {selected['name']}")
-    _exec_claude(extra_settings_args + claude_args)
-
-
-def _resolve_op_references(env: dict[str, str]) -> dict[str, str]:
-    resolved = {}
-    for key, value in env.items():
-        if value.startswith("op://"):
-            result = subprocess.run(
-                ["op", "read", value],
-                capture_output=True,
-                text=True,
-            )
-            if result.returncode != 0:
-                print(
-                    f"claudio: failed to read 1Password secret for {key}: {result.stderr.strip()}",
-                    file=sys.stderr,
-                )
-                sys.exit(1)
-            resolved[key] = result.stdout.strip()
-        else:
-            resolved[key] = value
-    return resolved
-
-
-def _exec_claude(claude_args: list[str]) -> None:
-    """Replace the current process with `claude`."""
-    if sys.platform == "win32":
-        result = subprocess.run(["claude", *claude_args], shell=True)
-        sys.exit(result.returncode)
-    else:
-        os.execvp("claude", ["claude", *claude_args])
+    exec_claude(extra_settings_args + claude_args)

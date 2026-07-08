@@ -7,11 +7,7 @@ import sys
 from prompt_toolkit import prompt as pt_prompt
 from prompt_toolkit.formatted_text import HTML
 
-from claudio.settings import (
-    load_user_settings,
-    save_user_settings,
-    validate_projects,
-)
+from claudio.config import load_user_settings, save_user_settings
 
 
 def select_project(projects: list[dict]) -> dict | None:

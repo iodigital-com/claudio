@@ -1,4 +1,4 @@
-"""Tests for claudio.settings — config merge, validation, and JSON loading."""
+"""Tests for claudio.config — config merge, validation, and JSON loading."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ from unittest.mock import patch
 
 import pytest
 
-from claudio.settings import (
+from claudio.config import (
     ConfigError,
     merged_claudio_config,
     validate_projects,
@@ -108,19 +108,19 @@ def _make_layers(layers):
 
 
 def test_merged_config_no_layers_returns_empty():
-    with patch("claudio.settings.claudio_config_layers", return_value=[]):
+    with patch("claudio.config.claudio_config_layers", return_value=[]):
         assert merged_claudio_config() == {}
 
 
 def test_merged_config_no_layer_has_projects_returns_empty():
     layers = _make_layers([{"env": {"FOO": "bar"}}])
-    with patch("claudio.settings.claudio_config_layers", return_value=layers):
+    with patch("claudio.config.claudio_config_layers", return_value=layers):
         assert merged_claudio_config() == {}
 
 
 def test_merged_config_single_project():
     layers = _make_layers([{"projects": [{"name": "work"}]}])
-    with patch("claudio.settings.claudio_config_layers", return_value=layers):
+    with patch("claudio.config.claudio_config_layers", return_value=layers):
         result = merged_claudio_config()
     assert result == {"projects": [{"name": "work"}]}
 
@@ -132,7 +132,7 @@ def test_merged_config_higher_layer_determines_project_list():
         {"projects": [{"name": "work"}]},
         {"projects": [{"name": "work"}, {"name": "personal"}]},
     ])
-    with patch("claudio.settings.claudio_config_layers", return_value=layers):
+    with patch("claudio.config.claudio_config_layers", return_value=layers):
         result = merged_claudio_config()
     names = [p["name"] for p in result["projects"]]
     assert names == ["work"]
@@ -145,7 +145,7 @@ def test_merged_config_lower_layer_enriches_env():
         {"projects": [{"name": "work"}]},
         {"projects": [{"name": "work", "env": {"ANTHROPIC_API_KEY": "sk-lower"}}]},
     ])
-    with patch("claudio.settings.claudio_config_layers", return_value=layers):
+    with patch("claudio.config.claudio_config_layers", return_value=layers):
         result = merged_claudio_config()
     assert result["projects"][0]["env"]["ANTHROPIC_API_KEY"] == "sk-lower"
 
@@ -156,7 +156,7 @@ def test_merged_config_higher_layer_env_wins():
         {"projects": [{"name": "work", "env": {"ANTHROPIC_API_KEY": "sk-high"}}]},
         {"projects": [{"name": "work", "env": {"ANTHROPIC_API_KEY": "sk-low"}}]},
     ])
-    with patch("claudio.settings.claudio_config_layers", return_value=layers):
+    with patch("claudio.config.claudio_config_layers", return_value=layers):
         result = merged_claudio_config()
     assert result["projects"][0]["env"]["ANTHROPIC_API_KEY"] == "sk-high"
 
@@ -168,7 +168,7 @@ def test_merged_config_env_deep_merged_distinct_keys():
         {"projects": [{"name": "work", "env": {"HIGH_KEY": "high"}}]},
         {"projects": [{"name": "work", "env": {"LOW_KEY": "low"}}]},
     ])
-    with patch("claudio.settings.claudio_config_layers", return_value=layers):
+    with patch("claudio.config.claudio_config_layers", return_value=layers):
         result = merged_claudio_config()
     env = result["projects"][0]["env"]
     assert env["HIGH_KEY"] == "high"
@@ -179,6 +179,6 @@ def test_merged_config_preserves_project_order_from_defining_layer():
     layers = _make_layers([
         {"projects": [{"name": "z"}, {"name": "a"}, {"name": "m"}]},
     ])
-    with patch("claudio.settings.claudio_config_layers", return_value=layers):
+    with patch("claudio.config.claudio_config_layers", return_value=layers):
         result = merged_claudio_config()
     assert [p["name"] for p in result["projects"]] == ["z", "a", "m"]
