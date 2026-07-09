@@ -24,13 +24,13 @@ class EditorAdapter:
 VSCODE = EditorAdapter(
     name="VS Code",
     settings_file=".vscode/settings.json",
-    settings_key="claude.claudePath",
+    settings_key="claudeCode.claudeProcessWrapper",
 )
 
 CURSOR = EditorAdapter(
     name="Cursor",
     settings_file=".cursor/settings.json",
-    settings_key="claude.claudePath",
+    settings_key="claudeCode.claudeProcessWrapper",
 )
 
 

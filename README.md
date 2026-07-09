@@ -238,7 +238,7 @@ To use claudio as a process wrapper in VS Code so secrets are resolved automatic
 claudio setup vscode --workspace
 ```
 
-This creates `.claude/claudio-wrapper` (a shell shim) and adds `claude.claudePath` to `.vscode/settings.json`. Restart VS Code or reload the window afterwards.
+This creates `.claude/claudio-wrapper` (a shell shim) and adds `claudeCode.claudeProcessWrapper` to `.vscode/settings.json`. Restart VS Code or reload the window afterwards.
 
 To preview what would be written without making changes:
 
@@ -246,7 +246,7 @@ To preview what would be written without making changes:
 claudio setup vscode --print
 ```
 
-**How it works:** VS Code's `claude.claudePath` setting takes a single binary path. `claudio setup vscode` generates a thin shell script:
+**How it works:** VS Code's `claudeCode.claudeProcessWrapper` setting takes a single binary path. `claudio setup vscode` generates a thin shell script:
 
 ```sh
 #!/bin/sh

@@ -23,7 +23,7 @@ from claudio.setup import CURSOR, VSCODE, EditorAdapter, cmd_setup_print, cmd_se
 def test_vscode_adapter_attributes():
     assert VSCODE.name == "VS Code"
     assert VSCODE.settings_file == ".vscode/settings.json"
-    assert "claude.claudePath" in VSCODE.settings_key
+    assert VSCODE.settings_key == "claudeCode.claudeProcessWrapper"
 
 
 def test_cursor_adapter_attributes():
