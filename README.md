@@ -238,7 +238,7 @@ To use claudio as a process wrapper in VS Code so secrets are resolved automatic
 claudio setup vscode --workspace
 ```
 
-This creates `.claude/claudio-wrapper` (a shell shim) and adds `claudeCode.claudeProcessWrapper` to `.vscode/settings.json`. Restart VS Code or reload the window afterwards.
+This creates `~/.claude/claudio-wrapper` (a global shell shim) and writes `claudeCode.claudeProcessWrapper` to your VS Code user settings (`~/Library/Application Support/Code/User/settings.json` on macOS). You only need to run this once per machine — the shim works for all repos. Restart VS Code or reload the window afterwards.
 
 To preview what would be written without making changes:
 
@@ -275,7 +275,7 @@ If the project cannot be resolved, the error message guides you to:
 claudio setup cursor --workspace
 ```
 
-This writes to `.cursor/settings.json` instead of `.vscode/settings.json`. The same `.claude/claudio-wrapper` shim is reused, so running both `setup vscode` and `setup cursor` is safe.
+This writes `claudeCode.claudeProcessWrapper` to your Cursor user settings instead of VS Code's. The same `~/.claude/claudio-wrapper` shim is reused, so running both `setup vscode` and `setup cursor` is safe.
 
 ```sh
 claudio setup cursor --print   # preview only
