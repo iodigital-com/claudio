@@ -1,6 +1,6 @@
 # claudio
 
-Manages named credentials profiles (API keys, bearer tokens, proxy URLs) for [Claude Code](https://docs.anthropic.com/en/docs/claude-code) and launches `claude` with the right one. Secrets are pulled from 1Password at runtime — nothing stored in plaintext.
+Manages named API keys for [Claude Code](https://docs.anthropic.com/en/docs/claude-code) and launches `claude` with the right one. Secrets are pulled from 1Password at runtime — nothing stored in plaintext.
 
 ## Claude Code
 
@@ -213,15 +213,6 @@ When `claudio` detects an `op://` value, it resolves it via the [1Password CLI](
 
 You need the 1Password CLI installed: https://www.1password.dev/cli/get-started
 
-### Why prefer ANTHROPIC_AUTH_TOKEN for company proxies?
-
-Company proxies typically issue short-lived bearer tokens (OAuth access tokens, SSO-issued JWTs) rather than static API keys. Bearer tokens:
-- Are issued per-user and can be revoked without rotating a shared key
-- Are the correct HTTP auth mechanism (`Authorization: Bearer <token>`)
-- Work with proxies that forward to Anthropic on your behalf
-
-Use `ANTHROPIC_API_KEY` only when the proxy specifically requires an API key format, or for direct Anthropic access.
-
 ### Security trade-offs
 
 | Approach | Where secrets live | Risk |
@@ -300,15 +291,3 @@ Output is always redacted: only variable names and their storage type (`1Passwor
 | Note | Meaning |
 | --- | --- |
 | `ANTHROPIC_AUTH_TOKEN set without ANTHROPIC_BASE_URL` | Usually means you forgot `ANTHROPIC_BASE_URL`; fine if your proxy is set globally |
-
-## Background
-
-When working for multiple clients, you often need to switch between different Anthropic API keys. Claude Code doesn't provide a way to select a named credentials profile at launch — you'd have to manually update your config or environment before each session. Storing those keys as plaintext is also a supply chain risk.
-
-claudio solves this by letting you define named credentials profiles and selecting one at launch. Keys stay in 1Password and are resolved at runtime.
-
-> Claude Code also supports [`apiKeyHelper`](https://code.claude.com/docs/en/settings#available-settings) — a shell command that returns an API key at runtime:
-> ```json
-> { "apiKeyHelper": "op read op://Personal/Anthropic/credential" }
-> ```
-> This works well for a single key per machine, but triggers a new 1Password biometric prompt on every invocation and can't be combined with a bearer auth token. claudio adds value when you manage multiple clients with different keys, use a company proxy that requires bearer auth, or need per-profile env vars beyond just the API key.
