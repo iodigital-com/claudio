@@ -92,7 +92,7 @@ def cmd_setup_print(adapter: EditorAdapter) -> None:
     print(f"# {adapter.name} setup\n")
     print(f"# 1. Create {shim} and make it executable:")
     print()
-    print(shim_content)
+    print(shim_content, end="")
     print(f"#    chmod +x {shim}\n")
     print(f"# 2. Add to {adapter.name} user settings ({adapter.user_settings}):")
     print()
