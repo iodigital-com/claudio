@@ -1,4 +1,4 @@
-# claudio
+# Claudio
 
 Manages named API keys for [Claude Code](https://docs.anthropic.com/en/docs/claude-code) and launches `claude` with the right one. Secrets are pulled from 1Password at runtime — nothing stored in plaintext.
 
@@ -22,7 +22,7 @@ Windows: clone the repo and run `uv tool install . --reinstall` from the repo ro
       "name": "Klant A",
       "env": {
         "ANTHROPIC_BASE_URL": "https://proxy.klantA.com",
-        "ANTHROPIC_AUTH_TOKEN": "op://Employee/Klant A/token"
+        "ANTHROPIC_AUTH_TOKEN": "op://Employee/klantA/password" //format= op://<vaultName>/<secretName>/<attributeName>
       }
     }
   ]
@@ -31,16 +31,26 @@ Windows: clone the repo and run `uv tool install . --reinstall` from the repo ro
 
 **Run:**
 ```sh
-claudio
+claudio [-normal claude parameters]
 ```
 
-claudio picks a credentials profile, resolves `op://` secrets from 1Password, and launches `claude`. With one profile it selects automatically; otherwise you get an interactive picker with the last-used profile as default.
+You get an interactive picker with the last-used profile as default, claudio resolves `op://` secrets from 1Password, and launches `claude`. With only one profile it selects automatically.
 
 Run `claudio doctor` to verify your setup.
 
 > For multiple profiles, per-repo pinning, and advanced config see [Configuration reference](#configuration-reference).
 
-## VS Code
+### Common warnings
+
+| Warning | Fix |
+| --- | --- |
+| `no credential configured` | Add `ANTHROPIC_AUTH_TOKEN` or `ANTHROPIC_API_KEY` to the credentials profile env |
+| `both ANTHROPIC_API_KEY and ANTHROPIC_AUTH_TOKEN are set` | Remove one; `ANTHROPIC_AUTH_TOKEN` takes precedence |
+| `op not found` | Install the 1Password CLI from https://developer.1password.com/docs/cli/get-started/ |
+| `claude not found` | Install Claude Code |
+| `ANTHROPIC_AUTH_TOKEN set without ANTHROPIC_BASE_URL` | Usually means you forgot `ANTHROPIC_BASE_URL`; fine if your proxy is set globally |
+
+## For Claude Code in Visual Studio Code 
 
 With claudio installed and a config in place (see above), run **once per machine**:
 
@@ -48,13 +58,13 @@ With claudio installed and a config in place (see above), run **once per machine
 claudio setup vscode --workspace
 ```
 
-Restart VS Code. From now on, VS Code launches Claude Code through claudio automatically — credentials are resolved without any prompts.
+Restart VS Code. From now on, VS Code launches Claude Code plugin through claudio automatically — credentials are resolved without any prompts.
 
 If you have multiple credentials profiles, pin the right one for a repo by creating `.claude/claudio.settings.local.json` with a single profile (see [Pinning a credentials profile per repo](#pinning-a-credentials-profile-per-repo)).
 
 > Preview what the setup command writes without applying it: `claudio setup vscode --print`
 
-## Cursor
+## For Claude Code in Cursor
 
 With claudio installed and a config in place, run **once per machine**:
 
@@ -96,20 +106,7 @@ Set `ANTHROPIC_AUTH_TOKEN` **or** `ANTHROPIC_API_KEY`, not both. If both are pre
 
 ### Examples
 
-**Direct Anthropic API:**
 
-```json
-{
-  "projects": [
-    {
-      "name": "Personal",
-      "env": {
-        "ANTHROPIC_API_KEY": "op://Personal/Anthropic/credential"
-      }
-    }
-  ]
-}
-```
 
 **Company proxy (bearer token):**
 
@@ -126,7 +123,20 @@ Set `ANTHROPIC_AUTH_TOKEN` **or** `ANTHROPIC_API_KEY`, not both. If both are pre
   ]
 }
 ```
+**Direct Anthropic API:**
 
+```json
+{
+  "projects": [
+    {
+      "name": "Personal",
+      "env": {
+        "ANTHROPIC_API_KEY": "op://Personal/Anthropic/credential"
+      }
+    }
+  ]
+}
+```
 **Multiple clients, mixed setup:**
 
 ```json
@@ -140,9 +150,10 @@ Set `ANTHROPIC_AUTH_TOKEN` **or** `ANTHROPIC_API_KEY`, not both. If both are pre
       }
     },
     {
-      "name": "Personal",
+      "name": "Klant B",
       "env": {
-        "ANTHROPIC_API_KEY": "op://Personal/Anthropic/credential"
+        "ANTHROPIC_BASE_URL": "https://proxy.klantA.com",
+        "ANTHROPIC_AUTH_TOKEN": "op://Employee/Klant A/token"
       }
     }
   ]
@@ -221,7 +232,7 @@ You need the 1Password CLI installed: https://www.1password.dev/cli/get-started
 | Plaintext in config | Config file on disk | Medium — readable by any process with filesystem access |
 | Environment variable injection | Process environment, inherited by child | Low — not visible in `ps` output |
 
-## How wrapper mode works
+## How wrapper mode for VS and Cursor works
 
 When you run `claudio setup vscode --workspace` or `claudio setup cursor --workspace`, claudio:
 
@@ -277,17 +288,3 @@ No issues found.
 
 Output is always redacted: only variable names and their storage type (`1Password` or `plaintext`) are shown — resolved secret values are never printed.
 
-### Common warnings
-
-| Warning | Fix |
-| --- | --- |
-| `no credential configured` | Add `ANTHROPIC_AUTH_TOKEN` or `ANTHROPIC_API_KEY` to the credentials profile env |
-| `both ANTHROPIC_API_KEY and ANTHROPIC_AUTH_TOKEN are set` | Remove one; `ANTHROPIC_AUTH_TOKEN` takes precedence |
-| `op not found` | Install the 1Password CLI from https://developer.1password.com/docs/cli/get-started/ |
-| `claude not found` | Install Claude Code |
-
-### Notes (non-blocking)
-
-| Note | Meaning |
-| --- | --- |
-| `ANTHROPIC_AUTH_TOKEN set without ANTHROPIC_BASE_URL` | Usually means you forgot `ANTHROPIC_BASE_URL`; fine if your proxy is set globally |
