@@ -63,7 +63,16 @@ def _shim_path() -> Path:
 
 
 def _shim_content(claudio: str, claude: str) -> str:
-    return f"#!/bin/sh\nexec {claudio} wrapper -- {claude} \"$@\"\n"
+    # The VS Code/Cursor extension passes its bundled binary path as the first
+    # argument (executableArgs[0]) followed by the actual CLI args. Since we
+    # hardcode the claude path, we need to strip that leading binary path.
+    # Detect it by checking if $1 is an existing file (not a subcommand).
+    return (
+        "#!/bin/sh\n"
+        f'# Drop the extension\'s bundled binary path if passed as $1\n'
+        f'if [ -f "$1" ] && case "$1" in *claude*) true;; *) false;; esac; then shift; fi\n'
+        f'exec {claudio} wrapper -- {claude} "$@"\n'
+    )
 
 
 def _read_json(path: Path) -> dict[str, Any]:
@@ -87,7 +96,10 @@ def cmd_setup_print(adapter: EditorAdapter) -> None:
     shim = _shim_path()
 
     shim_content = _shim_content(claudio, claude)
-    settings_snippet = {adapter.settings_key: str(shim)}
+    settings_snippet = {
+        adapter.settings_key: str(shim),
+        "claudeCode.disableLoginPrompt": True,
+    }
 
     print(f"# {adapter.name} setup\n")
     print(f"# 1. Create {shim} and make it executable:")
@@ -119,6 +131,7 @@ def cmd_setup_workspace(adapter: EditorAdapter) -> None:
     # Write the setting to user settings (workspace settings are not allowed for this key).
     data = _read_json(adapter.user_settings)
     data[adapter.settings_key] = str(shim)
+    data["claudeCode.disableLoginPrompt"] = True
     _write_json(adapter.user_settings, data)
 
     print(f"Wrote {shim}")
