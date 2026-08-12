@@ -297,7 +297,7 @@ binary (e.g. an unsupported platform) or when you run the shim manually.
 
 | Symptom | Cause / fix |
 | --- | --- |
-| Claude panel shows *Not logged in* / no authentication | The wrapper couldn't inject credentials or the project didn't resolve. Run `claudio doctor` in the workspace, confirm `CLAUDIO_PROJECT` (or a single-project `.claude/claudio.settings.local.json`) is set, then reload the window. |
+| Claude panel shows *Not logged in* / no authentication | Make sure `claudeCode.disableLoginPrompt` is `true` in your **user** settings — without it the extension shows a sign-in screen even though claudio injects valid credentials. `claudio setup vscode --workspace` sets this automatically; if you edited settings manually, add it:<br>`"claudeCode.disableLoginPrompt": true`<br>Then confirm the project resolves (`claudio doctor`, plus `CLAUDIO_PROJECT` or a single-project `.claude/claudio.settings.local.json`) and reload the window. |
 | Nothing happens / extension can't start | Confirm `~/.claude/claudio-wrapper` exists and is executable, and that `claudeCode.claudeProcessWrapper` in your **user** settings points at it. Re-run `claudio setup vscode --workspace`. |
 | Works in terminal but not in the panel | VS Code may not inherit your shell env. Launch it with `code .` from a terminal, or pin the project via `.claude/claudio.settings.local.json`. |
 
