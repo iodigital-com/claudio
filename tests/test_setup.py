@@ -119,6 +119,23 @@ def test_setup_workspace_shim_path_in_user_settings(tmp_path):
 # ---------------------------------------------------------------------------
 
 
+def test_setup_workspace_sets_disable_login_prompt(tmp_path):
+    user_settings = tmp_path / "user_settings.json"
+    adapter = _adapter(VSCODE, user_settings)
+    with patch("claudio.setup.shutil.which", side_effect=lambda n: f"/usr/bin/{n}"), \
+         patch("claudio.setup.Path.home", return_value=tmp_path):
+        cmd_setup_workspace(adapter)
+    settings = json.loads(user_settings.read_text())
+    assert settings["claudeCode.disableLoginPrompt"] is True
+
+
+def test_setup_print_shows_disable_login_prompt(capsys):
+    with patch("claudio.setup.shutil.which", side_effect=lambda n: f"/usr/bin/{n}"), \
+         patch("claudio.setup.Path.home", return_value=Path("/home/user")):
+        cmd_setup_print(VSCODE)
+    assert "claudeCode.disableLoginPrompt" in capsys.readouterr().out
+
+
 def test_setup_workspace_merges_existing_user_settings(tmp_path):
     user_settings = tmp_path / "user_settings.json"
     user_settings.write_text(json.dumps({"editor.tabSize": 2}) + "\n")

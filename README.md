@@ -248,9 +248,12 @@ Full setup, in order:
    claudio setup vscode --workspace
    ```
    This creates `~/.claude/claudio-wrapper` (a global shell shim) and writes
-   `claudeCode.claudeProcessWrapper` to your VS Code user settings
-   (`~/Library/Application Support/Code/User/settings.json` on macOS). You only
-   need to run this once per machine — the shim works for all repos.
+   both `claudeCode.claudeProcessWrapper` and `claudeCode.disableLoginPrompt`
+   to your VS Code user settings (`~/Library/Application Support/Code/User/settings.json`
+   on macOS). `disableLoginPrompt` stops the extension from nagging for an
+   interactive sign-in when claudio already injects credentials (proxy /
+   third-party providers). You only need to run this once per machine — the
+   shim works for all repos.
 3. **Make sure the project resolves** — either set `CLAUDIO_PROJECT` in the shell
    that launches VS Code, or add a single-project
    `.claude/claudio.settings.local.json` to the workspace (see

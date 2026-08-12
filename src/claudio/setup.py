@@ -62,6 +62,12 @@ def _shim_path() -> Path:
     return Path.home() / ".claude" / "claudio-wrapper"
 
 
+# When claudio injects credentials (e.g. a company proxy ANTHROPIC_BASE_URL +
+# ANTHROPIC_AUTH_TOKEN), the extension should not nag for an interactive Claude
+# sign-in. This mirrors Anthropic's documented third-party-provider setup.
+_LOGIN_PROMPT_KEY = "claudeCode.disableLoginPrompt"
+
+
 def _shim_content(claudio: str, claude: str) -> str:
     # VS Code / Cursor invoke the process wrapper with their *bundled* claude
     # binary as the first argument. `claudio wrapper` prefers that binary and
@@ -91,7 +97,10 @@ def cmd_setup_print(adapter: EditorAdapter) -> None:
     shim = _shim_path()
 
     shim_content = _shim_content(claudio, claude)
-    settings_snippet = {adapter.settings_key: str(shim)}
+    settings_snippet = {
+        adapter.settings_key: str(shim),
+        _LOGIN_PROMPT_KEY: True,
+    }
 
     print(f"# {adapter.name} setup\n")
     print(f"# 1. Create {shim} and make it executable:")
@@ -123,6 +132,7 @@ def cmd_setup_workspace(adapter: EditorAdapter) -> None:
     # Write the setting to user settings (workspace settings are not allowed for this key).
     data = _read_json(adapter.user_settings)
     data[adapter.settings_key] = str(shim)
+    data[_LOGIN_PROMPT_KEY] = True
     _write_json(adapter.user_settings, data)
 
     print(f"Wrote {shim}")
