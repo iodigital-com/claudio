@@ -134,6 +134,76 @@ def test_wrapper_with_project_flag_uses_hint(monkeypatch):
 # ---------------------------------------------------------------------------
 
 
+# ---------------------------------------------------------------------------
+# Wrapper — bundled binary passed by the editor (--fallback-claude shim)
+# ---------------------------------------------------------------------------
+
+
+def test_wrapper_prefers_editor_bundled_binary(monkeypatch, tmp_path):
+    """VS Code passes its bundled claude as the first arg; it must be exec'd
+    directly, not forwarded as a positional argument to the fallback."""
+    bundled = tmp_path / "bundled-claude"
+    bundled.write_text("#!/bin/sh\n")
+    bundled.chmod(0o755)
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "claudio", "wrapper", "--fallback-claude", "/usr/local/bin/claude",
+            "--", str(bundled), "--flag",
+        ],
+    )
+    project = _make_project("work")
+
+    with patch("claudio.cli.merged_claudio_config", return_value={"projects": [project]}), \
+         patch("claudio.cli.validate_projects", return_value=[project]), \
+         patch("claudio.cli.resolve_project", return_value=project), \
+         patch("claudio.cli.exec_claude") as mock_exec:
+        main()
+
+    mock_exec.assert_called_once_with(["--flag"], claude_path=str(bundled))
+
+
+def test_wrapper_uses_fallback_when_no_bundled_binary(monkeypatch):
+    """When the editor passes no binary (unsupported platform), the shim's
+    --fallback-claude is used and remaining args are forwarded."""
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "claudio", "wrapper", "--fallback-claude", "/usr/local/bin/claude",
+            "--", "--flag",
+        ],
+    )
+    project = _make_project("work")
+
+    with patch("claudio.cli.merged_claudio_config", return_value={"projects": [project]}), \
+         patch("claudio.cli.validate_projects", return_value=[project]), \
+         patch("claudio.cli.resolve_project", return_value=project), \
+         patch("claudio.cli.exec_claude") as mock_exec:
+        main()
+
+    mock_exec.assert_called_once_with(["--flag"], claude_path="/usr/local/bin/claude")
+
+
+def test_wrapper_fallback_equals_form(monkeypatch):
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["claudio", "wrapper", "--fallback-claude=/usr/local/bin/claude", "--"],
+    )
+    project = _make_project("work")
+
+    with patch("claudio.cli.merged_claudio_config", return_value={"projects": [project]}), \
+         patch("claudio.cli.validate_projects", return_value=[project]), \
+         patch("claudio.cli.resolve_project", return_value=project), \
+         patch("claudio.cli.exec_claude") as mock_exec:
+        main()
+
+    mock_exec.assert_called_once_with([], claude_path="/usr/local/bin/claude")
+
+
 def test_wrapper_env_applied_before_exec(monkeypatch):
     monkeypatch.setattr(sys, "argv", ["claudio", "wrapper", "--", "/usr/local/bin/claude"])
     project = _make_project("work", env={"ANTHROPIC_AUTH_TOKEN": "bearer-token"})

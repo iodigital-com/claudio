@@ -232,13 +232,40 @@ You do need to setup 1Password CLI for this, see: https://www.1password.dev/cli/
 
 ## VS Code setup
 
-To use claudio as a process wrapper in VS Code so secrets are resolved automatically on every Claude Code session:
+> **claudio does not replace the Claude Code extension or its sign-in.** It only
+> injects your project's credentials into the environment before Claude Code
+> starts. You still install the extension and authenticate as usual — claudio
+> just makes the right `ANTHROPIC_*` env vars available for each project (e.g. a
+> company proxy `ANTHROPIC_BASE_URL` + `ANTHROPIC_AUTH_TOKEN`).
 
-```sh
-claudio setup vscode --workspace
-```
+Full setup, in order:
 
-This creates `~/.claude/claudio-wrapper` (a global shell shim) and writes `claudeCode.claudeProcessWrapper` to your VS Code user settings (`~/Library/Application Support/Code/User/settings.json` on macOS). You only need to run this once per machine — the shim works for all repos. Restart VS Code or reload the window afterwards.
+1. **Install the Claude Code extension** in VS Code (Extensions view → search
+   "Claude Code" → Install). This is required — claudio does not install it.
+2. **Configure the wrapper** so secrets are resolved automatically on every
+   session:
+   ```sh
+   claudio setup vscode --workspace
+   ```
+   This creates `~/.claude/claudio-wrapper` (a global shell shim) and writes
+   `claudeCode.claudeProcessWrapper` to your VS Code user settings
+   (`~/Library/Application Support/Code/User/settings.json` on macOS). You only
+   need to run this once per machine — the shim works for all repos.
+3. **Make sure the project resolves** — either set `CLAUDIO_PROJECT` in the shell
+   that launches VS Code, or add a single-project
+   `.claude/claudio.settings.local.json` to the workspace (see
+   [Non-interactive project resolution](#non-interactive-project-resolution-in-wrapper-mode)).
+4. **Restart VS Code** (or run *Developer: Reload Window*) so the setting takes
+   effect.
+5. **Open the Claude Code panel and authenticate** as you normally would:
+   - For a **company proxy**, the injected `ANTHROPIC_BASE_URL` +
+     `ANTHROPIC_AUTH_TOKEN` handle auth; you may also need to enable
+     *Disable Login Prompt* in the extension settings for third-party providers.
+   - For **direct Anthropic access**, sign in with your Claude account, or rely
+     on the injected `ANTHROPIC_API_KEY`.
+
+If the Claude panel still shows *Not logged in* / *Please run /login* after this,
+see [Troubleshooting the VS Code wrapper](#troubleshooting-the-vs-code-wrapper).
 
 To preview what would be written without making changes:
 
@@ -246,14 +273,30 @@ To preview what would be written without making changes:
 claudio setup vscode --print
 ```
 
-**How it works:** VS Code's `claudeCode.claudeProcessWrapper` setting takes a single binary path. `claudio setup vscode` generates a thin shell script:
+**How it works:** VS Code's `claudeCode.claudeProcessWrapper` setting takes a
+single executable path, and the editor invokes it with **its own bundled `claude`
+binary as the first argument**. `claudio setup vscode` generates a thin shell
+script:
 
 ```sh
 #!/bin/sh
-exec /abs/path/to/claudio wrapper -- /abs/path/to/claude "$@"
+exec /abs/path/to/claudio wrapper --fallback-claude /abs/path/to/claude "$@"
 ```
 
-When VS Code launches Claude Code, it runs this shim, which resolves the project non-interactively and injects the credentials into the environment before exec-ing the real `claude` binary (secrets never appear in `ps` output).
+When VS Code launches Claude Code, it runs this shim, which resolves the project
+non-interactively and injects the credentials into the environment before
+exec-ing Claude Code (secrets never appear in `ps` output). The wrapper **execs
+the bundled binary the editor passes in**, so you run the exact Claude Code build
+the extension ships; `--fallback-claude` is only used when the editor passes no
+binary (e.g. an unsupported platform) or when you run the shim manually.
+
+### Troubleshooting the VS Code wrapper
+
+| Symptom | Cause / fix |
+| --- | --- |
+| Claude panel shows *Not logged in* / no authentication | The wrapper couldn't inject credentials or the project didn't resolve. Run `claudio doctor` in the workspace, confirm `CLAUDIO_PROJECT` (or a single-project `.claude/claudio.settings.local.json`) is set, then reload the window. |
+| Nothing happens / extension can't start | Confirm `~/.claude/claudio-wrapper` exists and is executable, and that `claudeCode.claudeProcessWrapper` in your **user** settings points at it. Re-run `claudio setup vscode --workspace`. |
+| Works in terminal but not in the panel | VS Code may not inherit your shell env. Launch it with `code .` from a terminal, or pin the project via `.claude/claudio.settings.local.json`. |
 
 ### Non-interactive project resolution in wrapper mode
 
@@ -275,7 +318,11 @@ If the project cannot be resolved, the error message guides you to:
 claudio setup cursor --workspace
 ```
 
-This writes `claudeCode.claudeProcessWrapper` to your Cursor user settings instead of VS Code's. The same `~/.claude/claudio-wrapper` shim is reused, so running both `setup vscode` and `setup cursor` is safe.
+As with VS Code, this only injects credentials — you still install the Claude
+Code extension in Cursor and sign in there. This writes
+`claudeCode.claudeProcessWrapper` to your Cursor user settings instead of VS
+Code's. The same `~/.claude/claudio-wrapper` shim is reused, so running both
+`setup vscode` and `setup cursor` is safe.
 
 ```sh
 claudio setup cursor --print   # preview only

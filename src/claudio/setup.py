@@ -63,7 +63,11 @@ def _shim_path() -> Path:
 
 
 def _shim_content(claudio: str, claude: str) -> str:
-    return f"#!/bin/sh\nexec {claudio} wrapper -- {claude} \"$@\"\n"
+    # VS Code / Cursor invoke the process wrapper with their *bundled* claude
+    # binary as the first argument. `claudio wrapper` prefers that binary and
+    # falls back to --fallback-claude when the editor passes no binary (e.g.
+    # unsupported platforms) or when the shim is run manually.
+    return f"#!/bin/sh\nexec {claudio} wrapper --fallback-claude {claude} -- \"$@\"\n"
 
 
 def _read_json(path: Path) -> dict[str, Any]:

@@ -52,6 +52,7 @@ def test_setup_print_shows_shim_content(capsys):
         cmd_setup_print(VSCODE)
     out = capsys.readouterr().out
     assert "claudio wrapper" in out
+    assert "--fallback-claude /usr/bin/claude" in out
     assert "/usr/bin/claude" in out
 
 
@@ -91,7 +92,7 @@ def test_setup_workspace_creates_global_shim(tmp_path):
     shim = tmp_path / ".claude" / "claudio-wrapper"
     assert shim.exists()
     assert "claudio wrapper" in shim.read_text()
-    assert "/usr/bin/claude" in shim.read_text()
+    assert "--fallback-claude /usr/bin/claude" in shim.read_text()
 
 
 def test_setup_workspace_shim_is_executable(tmp_path):
