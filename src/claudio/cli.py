@@ -174,12 +174,58 @@ def _cmd_setup(remainder: list[str]) -> None:
         cmd_setup_print(adapter)
 
 
+def _looks_like_executable(path: str) -> bool:
+    """True if *path* points at an existing executable file."""
+    return os.path.isfile(path) and os.access(path, os.X_OK)
+
+
+def _resolve_wrapper_claude(
+    remainder: list[str], fallback_claude: str | None
+) -> tuple[str | None, list[str]]:
+    """Determine which claude binary to exec and the args to pass to it.
+
+    VS Code / Cursor invoke the process wrapper with their bundled claude
+    binary as the first argument. Prefer that binary; otherwise use the
+    shim's --fallback-claude; otherwise treat the first arg as the binary
+    (backwards-compatible manual `claudio wrapper -- /path/to/claude` use).
+    """
+    if remainder and _looks_like_executable(remainder[0]):
+        claude_path, *claude_args = remainder
+        return claude_path, claude_args
+    if fallback_claude:
+        return fallback_claude, remainder
+    if remainder:
+        claude_path, *claude_args = remainder
+        return claude_path, claude_args
+    return None, []
+
+
 def _cmd_wrapper(projects: list[dict], hint: str | None, remainder: list[str]) -> None:
     """Non-interactive project resolver for VS Code / Cursor process wrapper use."""
+    # Extract the optional --fallback-claude PATH emitted by the generated shim.
+    fallback_claude: str | None = None
+    rest: list[str] = []
+    i = 0
+    while i < len(remainder):
+        arg = remainder[i]
+        if arg == "--fallback-claude" and i + 1 < len(remainder):
+            fallback_claude = remainder[i + 1]
+            i += 2
+            continue
+        if arg.startswith("--fallback-claude="):
+            fallback_claude = arg.split("=", 1)[1]
+            i += 1
+            continue
+        rest.append(arg)
+        i += 1
+    remainder = rest
+
     if remainder and remainder[0] == "--":
         remainder = remainder[1:]
 
-    if not remainder:
+    claude_path, claude_args = _resolve_wrapper_claude(remainder, fallback_claude)
+
+    if not claude_path:
         print(
             "claudio wrapper: missing claude path\n"
             "  Usage: claudio wrapper -- /path/to/claude [...args]\n"
@@ -187,8 +233,6 @@ def _cmd_wrapper(projects: list[dict], hint: str | None, remainder: list[str]) -
             file=sys.stderr,
         )
         sys.exit(1)
-
-    claude_path, *claude_args = remainder
 
     try:
         selected = resolve_project(projects, hint=hint, interactive=False)

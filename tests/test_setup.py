@@ -52,6 +52,7 @@ def test_setup_print_shows_shim_content(capsys):
         cmd_setup_print(VSCODE)
     out = capsys.readouterr().out
     assert "claudio wrapper" in out
+    assert "--fallback-claude /usr/bin/claude" in out
     assert "/usr/bin/claude" in out
 
 
@@ -91,7 +92,7 @@ def test_setup_workspace_creates_global_shim(tmp_path):
     shim = tmp_path / ".claude" / "claudio-wrapper"
     assert shim.exists()
     assert "claudio wrapper" in shim.read_text()
-    assert "/usr/bin/claude" in shim.read_text()
+    assert "--fallback-claude /usr/bin/claude" in shim.read_text()
 
 
 def test_setup_workspace_shim_is_executable(tmp_path):
@@ -118,6 +119,23 @@ def test_setup_workspace_shim_path_in_user_settings(tmp_path):
 # ---------------------------------------------------------------------------
 
 
+def test_setup_workspace_sets_disable_login_prompt(tmp_path):
+    user_settings = tmp_path / "user_settings.json"
+    adapter = _adapter(VSCODE, user_settings)
+    with patch("claudio.setup.shutil.which", side_effect=lambda n: f"/usr/bin/{n}"), \
+         patch("claudio.setup.Path.home", return_value=tmp_path):
+        cmd_setup_workspace(adapter)
+    settings = json.loads(user_settings.read_text())
+    assert settings["claudeCode.disableLoginPrompt"] is True
+
+
+def test_setup_print_shows_disable_login_prompt(capsys):
+    with patch("claudio.setup.shutil.which", side_effect=lambda n: f"/usr/bin/{n}"), \
+         patch("claudio.setup.Path.home", return_value=Path("/home/user")):
+        cmd_setup_print(VSCODE)
+    assert "claudeCode.disableLoginPrompt" in capsys.readouterr().out
+
+
 def test_setup_workspace_merges_existing_user_settings(tmp_path):
     user_settings = tmp_path / "user_settings.json"
     user_settings.write_text(json.dumps({"editor.tabSize": 2}) + "\n")
@@ -128,6 +146,48 @@ def test_setup_workspace_merges_existing_user_settings(tmp_path):
     settings = json.loads(user_settings.read_text())
     assert settings["editor.tabSize"] == 2
     assert VSCODE.settings_key in settings
+
+
+def test_setup_workspace_preserves_jsonc_comments_and_settings(tmp_path):
+    """VS Code settings.json is JSONC. Existing settings must survive even with
+    comments and trailing commas present (regression: whole file was wiped)."""
+    user_settings = tmp_path / "user_settings.json"
+    user_settings.write_text(
+        "{\n"
+        "  // my editor prefs\n"
+        '  "editor.tabSize": 2,\n'
+        '  "editor.fontFamily": "Fira // Code", /* keep the slashes */\n'
+        '  "files.autoSave": "onFocusChange",\n'  # trailing comma below
+        "}\n"
+    )
+    adapter = _adapter(VSCODE, user_settings)
+    with patch("claudio.setup.shutil.which", side_effect=lambda n: f"/usr/bin/{n}"), \
+         patch("claudio.setup.Path.home", return_value=tmp_path):
+        cmd_setup_workspace(adapter)
+    settings = json.loads(user_settings.read_text())
+    assert settings["editor.tabSize"] == 2
+    assert settings["editor.fontFamily"] == "Fira // Code"
+    assert settings["files.autoSave"] == "onFocusChange"
+    assert VSCODE.settings_key in settings
+    assert settings["claudeCode.disableLoginPrompt"] is True
+    # A backup of the original file is created.
+    assert (tmp_path / "user_settings.json.claudio.bak").exists()
+
+
+def test_setup_workspace_aborts_on_unparseable_settings(tmp_path, capsys):
+    """A genuinely broken settings file must NOT be overwritten."""
+    user_settings = tmp_path / "user_settings.json"
+    original = '{ "editor.tabSize": 2 '  # missing closing brace, unrecoverable
+    user_settings.write_text(original)
+    adapter = _adapter(VSCODE, user_settings)
+    with patch("claudio.setup.shutil.which", side_effect=lambda n: f"/usr/bin/{n}"), \
+         patch("claudio.setup.Path.home", return_value=tmp_path):
+        with pytest.raises(SystemExit) as exc_info:
+            cmd_setup_workspace(adapter)
+    assert exc_info.value.code == 1
+    assert "could not parse" in capsys.readouterr().err
+    # File left untouched.
+    assert user_settings.read_text() == original
 
 
 def test_setup_workspace_exits_1_if_claude_not_found(tmp_path, capsys):
