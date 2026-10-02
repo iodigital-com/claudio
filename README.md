@@ -52,13 +52,17 @@ Run `claudio doctor` to verify your setup.
 
 ## For Claude Code in Visual Studio Code 
 
+> **claudio does not replace the Claude Code extension.** It only injects the right `ANTHROPIC_*` credentials into the environment before Claude Code starts. Install the Claude Code extension in VS Code first (Extensions view → search "Claude Code" → Install).
+
 With claudio installed and a config in place (see above), run **once per machine**:
 
 ```sh
 claudio setup vscode --workspace
 ```
 
-Restart VS Code. From now on, VS Code launches Claude Code plugin through claudio automatically — credentials are resolved without any prompts.
+Restart VS Code (or run *Developer: Reload Window*). From now on, VS Code launches the Claude Code extension through claudio automatically — credentials are resolved without any prompts. The setup also sets `claudeCode.disableLoginPrompt`, so the extension doesn't ask for an interactive sign-in when claudio already injects credentials.
+
+Still seeing *Not logged in* / *Please run /login*? See [Troubleshooting the VS Code / Cursor wrapper](#troubleshooting-the-vs-code--cursor-wrapper).
 
 If you have multiple credentials profiles, pin the right one for a repo by creating `.claude/claudio.settings.local.json` with a single profile (see [Pinning a credentials profile per repo](#pinning-a-credentials-profile-per-repo)).
 
@@ -72,7 +76,7 @@ With claudio installed and a config in place, run **once per machine**:
 claudio setup cursor --workspace
 ```
 
-Restart Cursor. Works identically to the VS Code setup — the same `~/.claude/claudio-wrapper` shim is reused, so running both `setup vscode` and `setup cursor` is safe.
+Restart Cursor. Works identically to the VS Code setup (install the Claude Code extension in Cursor first) — the same `~/.claude/claudio-wrapper` shim is reused, so running both `setup vscode` and `setup cursor` is safe.
 
 > Preview: `claudio setup cursor --print`
 
@@ -239,14 +243,14 @@ When you run `claudio setup vscode --workspace` or `claudio setup cursor --works
 1. Creates `~/.claude/claudio-wrapper` — a thin shell shim:
    ```sh
    #!/bin/sh
-   exec /abs/path/to/claudio wrapper -- /abs/path/to/claude "$@"
+   exec /abs/path/to/claudio wrapper --fallback-claude /abs/path/to/claude "$@"
    ```
-2. Writes `claudeCode.claudeProcessWrapper` pointing to that shim in your user settings:
+2. Writes `claudeCode.claudeProcessWrapper` (pointing to that shim) and `claudeCode.disableLoginPrompt: true` to your user settings. Existing settings are preserved:
    - VS Code on macOS: `~/Library/Application Support/Code/User/settings.json`
    - VS Code on Windows: `%APPDATA%\Code\User\settings.json`
    - Cursor: same paths under `Cursor` instead of `Code`
 
-When the IDE launches Claude Code, it runs the shim. The shim resolves credentials non-interactively and injects them into the environment before exec-ing the real `claude` binary — secrets never appear in `ps` output.
+When the IDE launches Claude Code, it runs the shim and passes **its own bundled `claude` binary as the first argument**. The shim resolves credentials non-interactively, injects them into the environment and execs that bundled binary — so you run the exact Claude Code build the extension ships, and secrets never appear in `ps` output. `--fallback-claude` is only used when the editor passes no binary (e.g. an unsupported platform) or when you run the shim manually.
 
 ### Credentials profile resolution in wrapper mode
 
@@ -260,6 +264,14 @@ In wrapper mode, claudio never prompts. Resolution order:
 If the profile cannot be resolved, the error message guides you to:
 - Set `CLAUDIO_PROJECT` in the shell that launches the IDE
 - Or create `.claude/claudio.settings.local.json` with one profile
+
+### Troubleshooting the VS Code / Cursor wrapper
+
+| Symptom | Cause / fix |
+| --- | --- |
+| Claude panel shows *Not logged in* / no authentication | Make sure `"claudeCode.disableLoginPrompt": true` is in your **user** settings — without it the extension shows a sign-in screen even though claudio injects valid credentials. `claudio setup vscode --workspace` sets this automatically. Then confirm the profile resolves (`claudio doctor`, plus `CLAUDIO_PROJECT` or a single-profile `.claude/claudio.settings.local.json`) and reload the window. |
+| Nothing happens / extension can't start | Confirm `~/.claude/claudio-wrapper` exists and is executable, and that `claudeCode.claudeProcessWrapper` in your **user** settings points at it. Re-run `claudio setup vscode --workspace`. |
+| Works in terminal but not in the panel | The IDE may not inherit your shell env. Launch it with `code .` from a terminal, or pin the profile via `.claude/claudio.settings.local.json`. |
 
 ## Troubleshooting with `claudio doctor`
 
