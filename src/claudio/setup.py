@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 import shutil
 import stat
 import sys
@@ -62,17 +63,88 @@ def _shim_path() -> Path:
     return Path.home() / ".claude" / "claudio-wrapper"
 
 
+# When claudio injects credentials (e.g. a company proxy ANTHROPIC_BASE_URL +
+# ANTHROPIC_AUTH_TOKEN), the extension should not nag for an interactive Claude
+# sign-in. This mirrors Anthropic's documented third-party-provider setup.
+_LOGIN_PROMPT_KEY = "claudeCode.disableLoginPrompt"
+
+
 def _shim_content(claudio: str, claude: str) -> str:
-    return f"#!/bin/sh\nexec {claudio} wrapper -- {claude} \"$@\"\n"
+    # VS Code / Cursor invoke the process wrapper with their *bundled* claude
+    # binary as the first argument. `claudio wrapper` prefers that binary and
+    # falls back to --fallback-claude when the editor passes no binary (e.g.
+    # unsupported platforms) or when the shim is run manually.
+    return f"#!/bin/sh\nexec {claudio} wrapper --fallback-claude {claude} -- \"$@\"\n"
+
+
+class SettingsParseError(Exception):
+    """Raised when an existing settings file cannot be parsed safely."""
+
+
+def _strip_jsonc(text: str) -> str:
+    """Strip // and /* */ comments and trailing commas from JSONC text.
+
+    String-aware, so // or /* inside string values are preserved. VS Code /
+    Cursor settings files are JSONC, which the stdlib json module rejects.
+    """
+    out: list[str] = []
+    i = 0
+    n = len(text)
+    in_string = False
+    while i < n:
+        c = text[i]
+        if in_string:
+            out.append(c)
+            if c == "\\" and i + 1 < n:
+                out.append(text[i + 1])
+                i += 2
+                continue
+            if c == '"':
+                in_string = False
+            i += 1
+            continue
+        if c == '"':
+            in_string = True
+            out.append(c)
+            i += 1
+            continue
+        if c == "/" and i + 1 < n and text[i + 1] == "/":
+            i += 2
+            while i < n and text[i] != "\n":
+                i += 1
+            continue
+        if c == "/" and i + 1 < n and text[i + 1] == "*":
+            i += 2
+            while i + 1 < n and not (text[i] == "*" and text[i + 1] == "/"):
+                i += 1
+            i += 2
+            continue
+        out.append(c)
+        i += 1
+    result = "".join(out)
+    # Remove trailing commas before a closing } or ].
+    return re.sub(r",(\s*[}\]])", r"\1", result)
 
 
 def _read_json(path: Path) -> dict[str, Any]:
+    """Read a (possibly JSONC) settings file without losing existing content.
+
+    Raises SettingsParseError for a non-empty file that cannot be parsed, so
+    callers can abort instead of silently overwriting the user's settings.
+    """
     if not path.exists():
         return {}
-    try:
-        return json.loads(path.read_text())
-    except json.JSONDecodeError:
+    raw = path.read_text()
+    if not raw.strip():
         return {}
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError:
+        pass
+    try:
+        return json.loads(_strip_jsonc(raw))
+    except json.JSONDecodeError as exc:
+        raise SettingsParseError(str(exc)) from exc
 
 
 def _write_json(path: Path, data: dict[str, Any]) -> None:
@@ -87,7 +159,10 @@ def cmd_setup_print(adapter: EditorAdapter) -> None:
     shim = _shim_path()
 
     shim_content = _shim_content(claudio, claude)
-    settings_snippet = {adapter.settings_key: str(shim)}
+    settings_snippet = {
+        adapter.settings_key: str(shim),
+        _LOGIN_PROMPT_KEY: True,
+    }
 
     print(f"# {adapter.name} setup\n")
     print(f"# 1. Create {shim} and make it executable:")
@@ -116,12 +191,37 @@ def cmd_setup_workspace(adapter: EditorAdapter) -> None:
     shim.write_text(_shim_content(claudio, claude))
     shim.chmod(shim.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
 
-    # Write the setting to user settings (workspace settings are not allowed for this key).
-    data = _read_json(adapter.user_settings)
+    # Write the setting to user settings (workspace settings are not allowed for
+    # this key). We MERGE into the existing file so unrelated settings survive.
+    try:
+        data = _read_json(adapter.user_settings)
+    except SettingsParseError as exc:
+        print(
+            f"claudio setup: could not parse {adapter.user_settings}:\n"
+            f"  {exc}\n"
+            "  Refusing to overwrite it. Fix the JSON (or move it aside) and "
+            "re-run, or add these keys manually:\n"
+            f"    {adapter.settings_key}: {shim}\n"
+            f"    {_LOGIN_PROMPT_KEY}: true",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    # Back up the existing file before touching it, so nothing is ever lost.
+    backup: Path | None = None
+    if adapter.user_settings.exists() and adapter.user_settings.read_text().strip():
+        backup = adapter.user_settings.with_suffix(
+            adapter.user_settings.suffix + ".claudio.bak"
+        )
+        backup.write_text(adapter.user_settings.read_text())
+
     data[adapter.settings_key] = str(shim)
+    data[_LOGIN_PROMPT_KEY] = True
     _write_json(adapter.user_settings, data)
 
     print(f"Wrote {shim}")
     print(f"Updated {adapter.user_settings} → {adapter.settings_key}")
+    if backup is not None:
+        print(f"Backed up previous settings to {backup} (comments are not preserved)")
     print()
     print(f"Restart {adapter.name} (or reload the window) for the change to take effect.")

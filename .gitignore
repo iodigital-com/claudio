@@ -8,3 +8,9 @@ wheels/
 
 # Virtual environments
 .venv
+
+# Local claudio settings (personal, never committed)
+*.settings.local.json
+
+# Claude local working dirs
+.claude/
