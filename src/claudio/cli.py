@@ -268,14 +268,14 @@ def main() -> None:
     if claude_args and claude_args[0] in ("projects", "current", "doctor", "wrapper", "setup"):
         command = claude_args.pop(0)
 
+    if command == "setup":
+        _cmd_setup(claude_args)
+        return
+
     hint: str | None = args.project or os.environ.get("CLAUDIO_PROJECT") or None
     interactive = not args.no_interactive
 
     config = merged_claudio_config()
-
-    if command == "setup":
-        _cmd_setup(claude_args)
-        return
 
     if not config:
         if command in ("projects", "current", "doctor", "wrapper"):
