@@ -96,7 +96,7 @@ Create a `claudio.settings.json` (shared) or `claudio.settings.local.json` (git-
 
 - **`projects`** — array of credentials profile objects:
   - **`name`** (string, required) — display name for the credentials profile.
-  - **`env`** (object, optional) — key-value pairs merged into the Claude Code `env`. Values starting with `op://` are resolved via the 1Password CLI at runtime.
+  - **`env`** (object, optional) — key-value pairs merged into the Claude Code `env`. Values starting with `op://` are resolved via the 1Password CLI, and values starting with `keychain://` via the macOS Keychain, at runtime (see below).
 
 ### Supported env vars
 
@@ -226,6 +226,26 @@ op://<vault>/<item>/<attribute>
 
 When `claudio` detects an `op://` value, it resolves it via the [1Password CLI](https://www.1password.dev/cli/get-started) (`op read --no-newline`) before passing the token to Claude Code. Identical `op://` refs within one run are cached so you get at most one biometric prompt per unique secret.
 
+### Storing API keys in the macOS Keychain
+
+On macOS you can also keep keys in the system Keychain, using the `keychain://<service>/<account>` scheme:
+
+```json
+"ANTHROPIC_AUTH_TOKEN": "keychain://claudio/customer-1"
+```
+
+Store the key with the `security` CLI. Omitting the value after `-w` makes `security` prompt for it, which keeps the key out of your shell history:
+
+```bash
+security add-generic-password -s claudio -a customer-1 -w
+```
+
+When `claudio` detects a `keychain://` value, it resolves it by running `security find-generic-password -s <service> -a <account> -w` before passing the token to Claude Code.
+
+- macOS only — on other operating systems `claudio` exits with an error.
+- Secrets are per machine: there is no shared vault or rotation like with 1Password.
+- Items created with `security add-generic-password` should not prompt on read, but macOS may show a prompt if the keychain is locked or the item was created by another app (e.g. the Keychain Access GUI).
+
 You need the 1Password CLI installed: https://www.1password.dev/cli/get-started
 
 ### Security trade-offs
@@ -298,5 +318,5 @@ Config:
 No issues found.
 ```
 
-Output is always redacted: only variable names and their storage type (`1Password` or `plaintext`) are shown — resolved secret values are never printed.
+Output is always redacted: only variable names and their storage type (`1Password`, `Keychain` or `plaintext`) are shown — resolved secret values are never printed.
 

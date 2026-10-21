@@ -1,4 +1,4 @@
-"""Secret resolution — currently 1Password via `op read`."""
+"""Secret resolution — 1Password via `op read`, macOS Keychain via `security`."""
 
 from __future__ import annotations
 
@@ -69,5 +69,58 @@ def resolve_op_references(env: dict[str, str]) -> dict[str, str]:
 
         _cache[value] = result.stdout
         resolved[key] = result.stdout
+
+    return resolved
+
+
+_KEYCHAIN_PREFIX = "keychain://"
+
+
+def resolve_keychain_references(env: dict[str, str]) -> dict[str, str]:
+    """Replace any ``keychain://<service>/<account>`` values in *env* with secrets
+    read from the macOS Keychain. Never prints the resolved value.
+    """
+    resolved = {}
+    for key, value in env.items():
+        if not value.startswith(_KEYCHAIN_PREFIX):
+            resolved[key] = value
+            continue
+
+        if sys.platform != "darwin":
+            print(
+                f"claudio: keychain:// references are only supported on macOS (env var {key})",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+
+        service, _, account = value[len(_KEYCHAIN_PREFIX):].partition("/")
+        if not service or not account:
+            print(
+                f"claudio: invalid keychain reference for {key}: "
+                "expected keychain://<service>/<account>",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+
+        if value in _cache:
+            resolved[key] = _cache[value]
+            continue
+
+        result = subprocess.run(
+            ["security", "find-generic-password", "-s", service, "-a", account, "-w"],
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode != 0:
+            print(
+                f"claudio: failed to read Keychain secret for {key}: "
+                f"{result.stderr.strip()}",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+
+        secret = result.stdout.rstrip("\n")
+        _cache[value] = secret
+        resolved[key] = secret
 
     return resolved

@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from claudio.secrets import resolve_op_references
+from claudio.secrets import resolve_keychain_references, resolve_op_references
 
 
 def _fake_ok(stdout: str = "secret") -> MagicMock:
@@ -96,3 +96,61 @@ def test_stdout_not_stripped():
          patch("claudio.secrets.subprocess.run", return_value=_fake_ok("my-token")):
         result = resolve_op_references({"KEY": "op://vault/item/field"})
     assert result["KEY"] == "my-token"
+
+
+# ---------------------------------------------------------------------------
+# keychain:// resolution
+# ---------------------------------------------------------------------------
+
+
+def _kc_proc(returncode: int = 0, stdout: str = "", stderr: str = "") -> MagicMock:
+    r = MagicMock()
+    r.returncode = returncode
+    r.stdout = stdout
+    r.stderr = stderr
+    return r
+
+
+def test_keychain_success():
+    with patch("claudio.secrets.sys.platform", "darwin"), \
+         patch("claudio.secrets.subprocess.run", return_value=_kc_proc(stdout="tok\n")) as run:
+        out = resolve_keychain_references({"K": "keychain://svc/kc-success"})
+    assert out == {"K": "tok"}
+    assert run.call_args[0][0] == [
+        "security", "find-generic-password", "-s", "svc", "-a", "kc-success", "-w",
+    ]
+
+
+def test_keychain_plain_value_untouched():
+    with patch("claudio.secrets.subprocess.run") as run:
+        out = resolve_keychain_references({"K": "plain"})
+    assert out == {"K": "plain"}
+    run.assert_not_called()
+
+
+@pytest.mark.parametrize("ref", ["keychain://", "keychain://svc", "keychain://svc/"])
+def test_keychain_malformed_ref_exits(ref):
+    with patch("claudio.secrets.sys.platform", "darwin"), \
+         patch("claudio.secrets.subprocess.run") as run:
+        with pytest.raises(SystemExit) as exc_info:
+            resolve_keychain_references({"K": ref})
+    assert exc_info.value.code == 1
+    run.assert_not_called()
+
+
+def test_keychain_non_darwin_exits():
+    with patch("claudio.secrets.sys.platform", "linux"), \
+         patch("claudio.secrets.subprocess.run") as run:
+        with pytest.raises(SystemExit) as exc_info:
+            resolve_keychain_references({"K": "keychain://svc/acct"})
+    assert exc_info.value.code == 1
+    run.assert_not_called()
+
+
+def test_keychain_security_failure_exits():
+    with patch("claudio.secrets.sys.platform", "darwin"), \
+         patch("claudio.secrets.subprocess.run",
+               return_value=_kc_proc(returncode=44, stderr="not found\n")):
+        with pytest.raises(SystemExit) as exc_info:
+            resolve_keychain_references({"K": "keychain://svc/kc-fail"})
+    assert exc_info.value.code == 1

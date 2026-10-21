@@ -18,7 +18,7 @@ from claudio.config import (
 )
 from claudio.launcher import exec_claude
 from claudio.runtime import build_effective_env
-from claudio.secrets import resolve_op_references
+from claudio.secrets import resolve_keychain_references, resolve_op_references
 from claudio.selector import AmbiguousProject, ProjectNotFound, resolve_project
 
 
@@ -53,6 +53,7 @@ def _apply_project_env(project: dict) -> None:
     _, base_env = highest_claude_env()
     effective_env = build_effective_env(base_env, project_env)
     effective_env = resolve_op_references(effective_env)
+    effective_env = resolve_keychain_references(effective_env)
     os.environ.update(effective_env)
 
 
@@ -120,7 +121,12 @@ def _cmd_doctor(projects: list[dict], hint: str | None = None) -> None:
         for var in _KNOWN_VARS:
             if var in env:
                 val = env[var]
-                src = "1Password" if val.startswith("op://") else "plaintext"
+                if val.startswith("op://"):
+                    src = "1Password"
+                elif val.startswith("keychain://"):
+                    src = "Keychain"
+                else:
+                    src = "plaintext"
                 print(f"    {var:<{_VAR_WIDTH}}  ({src})")
 
         other_vars = sorted(k for k in env if k not in set(_KNOWN_VARS))
